@@ -1,7 +1,8 @@
 #
 # BTRFdom - Rappelz BTRF Document Object Model
-# By Glandu2, HighCrit
+# By Glandu2/Ldxngx/Peakz, HighCrit
 # Copyright 2013-2026
+# Updated to 3.0 by Andrej Tetkic
 #
 # This file is part of BTRFdom.
 # BTRFdom is free software: you can redistribute it and/or modify
@@ -101,4 +102,4 @@ def unregister():
 
 
 if __name__ == "__main__":
-    register()
+	register()
