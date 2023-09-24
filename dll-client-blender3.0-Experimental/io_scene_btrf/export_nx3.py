@@ -220,6 +220,43 @@ def error(str):
 	print(('btrfdom: Error: ' + str))
 	raise(str)
 
+# # # # # # # # # # # #  peakz animation # # # # # # # # # # # # 
+def to_array(matrix_world): 
+    array = []
+    n = [
+         matrix_world[0][0],matrix_world[1][0],matrix_world[2][0],
+         matrix_world[0][1],matrix_world[1][1],matrix_world[2][1],
+         matrix_world[0][2],matrix_world[1][2],matrix_world[2][2],
+	 
+         matrix_world[0][3],matrix_world[1][3],matrix_world[2][3]
+         ]
+    for x in n:
+        array.append(x)
+	
+    return array
+
+def ani_time_matrix_array(mesh_object):
+	time_array = []
+	ani_array = []
+	Scene = bpy.data.scenes['Scene']
+	
+	framecount = Scene.frame_end + 1 
+	for frame in range(framecount):
+		#print(frame) for debugging
+		Scene.frame_set(frame, subframe=0.0)
+
+		# time array
+		time_array.append(frame * 160)
+
+		# ani array
+		A = to_array(mesh_object.matrix_world)
+		
+		for i in range(12):
+			ani_array.append(A[i])
+		A.clear()
+	return time_array, ani_array
+# # # # # # # # # # # # peakz animation # # # # # # # # # # # # 
+
 
 def get_parent_mesh(mesh_object):
 	while mesh_object.parent is not None:
@@ -661,7 +698,7 @@ def get_nx3_mesh_block(tmlFile, rootBlock, mesh_object, mesh_data, mesh_block_fa
 	return block
 
 
-def get_nx3_new_mesh(tmlFile, rootBlock, mesh_object, materials_info):
+def get_nx3_new_mesh(tmlFile, rootBlock, mesh_object, materials_info , Option):
 	#Create a block that will contain the data of the template
 	fieldInfo = tmlFile.getTemplateByGuid(nx3_new_mesh_guid.bytes_le)
 	block = BtrfBlock()
@@ -705,11 +742,27 @@ def get_nx3_new_mesh(tmlFile, rootBlock, mesh_object, materials_info):
 
 	ani_time_array = []
 	ani_matrix_array = []
+
+	# # # # # # # # # # # # peakz animation # # # # # # # # # # # # 
+	try:
+		if mesh_object.animation_data.action and Option: # peakz
+			#print(mesh_object.name, "has animation") # for debugging 
+			transform_ani = ani_time_matrix_array(mesh_object)
+
+			for i in transform_ani[0]:
+				ani_time_array.append(i)
+			
+			for i in transform_ani[1]:
+				ani_matrix_array.append(i)
+	except Exception:
+		pass
+	# # # # # # # # # # # # peakz animation # # # # # # # # # # # # 
+	
 	visi_time_array = []
 	visi_value_array = []
 	#fx_array = []
 	children_objects = get_children_meshes(mesh_object)
-	mesh_children_array = [get_nx3_new_mesh(tmlFile, rootBlock, child_object, materials_info) for child_object in children_objects]
+	mesh_children_array = [get_nx3_new_mesh(tmlFile, rootBlock, child_object, materials_info, Option) for child_object in children_objects]
 
 	#string  mesh_name
 	subBlock = BtrfBlock()
@@ -806,6 +859,7 @@ def write_nx3_new_mesh_header(tmlFile, rootBlock, bones_info, materials_info, Op
 
 	EXPORT_COL_ONLY = Options[0]
 	EXPORT_SEL_ONLY = Options[1]
+	EXPORT_TANI     = Options[2]
 
 	if EXPORT_COL_ONLY:
 		if EXPORT_SEL_ONLY:
@@ -818,7 +872,7 @@ def write_nx3_new_mesh_header(tmlFile, rootBlock, bones_info, materials_info, Op
 		else:
 			objects = [obj for obj in bpy.data.objects if obj.type == 'MESH' and get_parent_mesh(obj) is None]
 
-	mesh_array = [get_nx3_new_mesh(tmlFile, rootBlock, mesh_object, materials_info) for mesh_object in objects]
+	mesh_array = [get_nx3_new_mesh(tmlFile, rootBlock, mesh_object, materials_info,  Options[2]) for mesh_object in objects]
 	bone_tm_array = [get_nx3_bone_tm(tmlFile, rootBlock, bone_info) for bone_info in bones_info]
 
 	#nx3_new_mesh mesh_array[]

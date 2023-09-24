@@ -30,7 +30,7 @@ bl_info = {
 
 import bpy
 from bpy_extras.io_utils import ExportHelper, ImportHelper
-from bpy.props import StringProperty, BoolProperty
+from bpy.props import StringProperty, BoolProperty, IntProperty
 from . import export_nx3
 from . import import_nx3
 import imp
@@ -60,8 +60,15 @@ class ExportBTRF(bpy.types.Operator, ExportHelper):
         default=False,
     )
 
+	use_Tanimation: BoolProperty(
+        name="Export Transform Animation",
+        description="Export Transform Animation (Location, Rotation, Scale)",
+        default=False,
+    )
+
+
 	def execute(self, context):
-		options =[self.use_collection,self.use_selection]
+		options =[self.use_collection, self.use_selection, self.use_Tanimation]
 		imp.reload(export_nx3)
 		export_nx3.write(self.filepath,*options)
 		return {'FINISHED'}
