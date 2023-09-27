@@ -147,6 +147,8 @@ nx3_mesh_frame_guid = uuid.UUID('{1C77954B-CDD5-4615-B7AD-F23BD3D0C23E}')
 nx3_weight_frame_guid = uuid.UUID('{B513DF30-80BE-44f4-980B-84B9D979A607}')
 nx3_mesh_tm_guid = uuid.UUID('{F09C560E-7328-411e-87A3-EEB165D5F929}')
 
+nx3_fx_guid = uuid.UUID('22C5CCD2-C9FC-4AA8-A63A-6677296313F8')
+nx3_fx_block_guid = uuid.UUID('83A78B40-C401-451D-8AE2-D26BEAB73E5A')
 
 class Material:
 	def __init__(self, texture_id, material_id, channel_id, material):
@@ -235,16 +237,29 @@ def to_array(matrix_world):
 	
     return array
 
-def ani_time_matrix_array(mesh_object):
+def ani_time_matrix_array(mesh_object, Fx):
 	time_array = []
 	ani_array = []
 	Scene = bpy.data.scenes['Scene']
-	
-	framecount = Scene.frame_end + 1 
-	for frame in range(framecount):
-		#print(frame) for debugging
-		Scene.frame_set(frame, subframe=0.0)
+	if not Fx:
+		#framecount = Scene.frame_end + 1 
+		for frame in range(Scene.frame_start, Scene.frame_end + 1):
+			#print(frame) for debugging
+			Scene.frame_set(frame, subframe=0.0)
 
+			# time array
+			time_array.append(frame * 160)
+
+			# ani array
+			A = to_array(mesh_object.matrix_world)
+			
+			for i in range(12):
+				ani_array.append(A[i])
+			A.clear()
+	else:
+		frame = Scene.frame_start
+	
+		Scene.frame_set(frame, subframe=0.0)
 		# time array
 		time_array.append(frame * 160)
 
@@ -257,7 +272,95 @@ def ani_time_matrix_array(mesh_object):
 	return time_array, ani_array
 # # # # # # # # # # # # peakz animation # # # # # # # # # # # # 
 
+# # # # # # # # # # # # peakz fx_array test # # # # # # # # # # # # 
 
+def fx_string_add(fx_string, string):
+	if len(string.split('=')[-1]) > 0:
+		fx_string += '\n' + string
+	return fx_string
+
+def insert_newline(string, index):
+    return string[:index] + '\n' + string[index+1:]
+
+def get_nx3_fx_block(tmlFile, rootBlock, mesh_object):
+	#Create a block that will contain the data of the template
+	fieldInfo = tmlFile.getTemplateByGuid(nx3_fx_block_guid.bytes_le)
+
+	block = BtrfBlock()
+	block.create(fieldInfo, rootBlock)
+
+	ob = mesh_object
+	nxfxType = ob.Nxfx
+	fx_string = ''
+	
+	if not ob.FxUseString:
+		if nxfxType == 'billboard':
+			fx_string = f'nxfx={nxfxType}'
+			fx_string = fx_string_add(fx_string, f'RenderType={ob.FxRenderType}')
+		if nxfxType == 'particle':
+			fx_string = f'nxfx={nxfxType}'
+			fx_string = fx_string_add(fx_string, f'createtime={ob.FxCreateTime}')
+			fx_string = fx_string_add(fx_string, f'beginspeed={ob.FxBeginSpeed}')
+			fx_string = fx_string_add(fx_string, f'velocity={ob.FxVelocity}')
+			fx_string = fx_string_add(fx_string, f'angle={ob.FxAngle}')
+			fx_string = fx_string_add(fx_string, f'lifetime={ob.FxLifeTime}')
+			fx_string = fx_string_add(fx_string, f'uvani={ob.FxUVAni}')
+			fx_string = fx_string_add(fx_string, f'loop={ob.FxLoop}')
+			fx_string = fx_string_add(fx_string, f'rendertype={ob.FxRenderType}')
+		if nxfxType == 'reverse_particle':
+			fx_string = f'nxfx={nxfxType}'
+			fx_string = fx_string_add(fx_string, f'createtime={ob.FxCreateTime}')
+			fx_string = fx_string_add(fx_string, f'beginspeed={ob.FxBeginSpeed}')
+			fx_string = fx_string_add(fx_string, f'velocity={ob.FxVelocity}')
+			fx_string = fx_string_add(fx_string, f'angle={ob.FxAngle}')
+			fx_string = fx_string_add(fx_string, f'lifetime={ob.FxLifeTime}')
+			fx_string = fx_string_add(fx_string, f'uvani={ob.FxUVAni}')
+			fx_string = fx_string_add(fx_string, f'loop={ob.FxLoop}')
+			fx_string = fx_string_add(fx_string, f'rendertype={ob.FxRenderType}')
+		if nxfxType == 'after_image':
+			fx_string = f'nxfx={nxfxType}'
+			fx_string = fx_string_add(fx_string, f'frametime={str(ob.FxFrameTime)}')
+			fx_string = fx_string_add(fx_string, f'framenumber={str(ob.FxFrameNumber)}')
+	else:
+		fx_string = ob.FxString
+		for i, t in enumerate(fx_string):
+			if fx_string[i] == '.':
+				if not fx_string[i-1].isnumeric() or not fx_string[i+1].isnumeric():
+					fx_string = insert_newline(fx_string, i)
+		
+	
+	print(fx_string)
+	#dword  time_value
+	subBlock = BtrfBlock()
+	subBlock.create(fieldInfo.getField(0), rootBlock)
+	subBlock.setDataInt(0, 0) # UV frame start unsupported for now
+	block.addBlock(subBlock)
+
+	#nx3_fx_block  fx_array[]
+	subBlock = BtrfBlock()
+	subBlock.create(fieldInfo.getField(1), rootBlock)
+	subBlock.setDataString(0, fx_string)
+	block.addBlock(subBlock)
+
+	return block
+
+def get_nx3_fx(tmlFile, rootBlock, mesh_object):
+	#Create a block that will contain the data of the template
+	fieldInfo = tmlFile.getTemplateByGuid(nx3_fx_guid.bytes_le)
+
+	block = BtrfBlock()
+	block.create(fieldInfo, rootBlock)
+
+	nx3_fx_block = get_nx3_fx_block(tmlFile, rootBlock, mesh_object)
+
+	#nx3_fx_block  fx_array[]
+	subBlock = BtrfBlock()
+	subBlock.create(fieldInfo.getField(0), rootBlock)
+	subBlock.addBlock(nx3_fx_block)
+	block.addBlock(subBlock)
+
+	return block
+# # # # # # # # # # # # peakz fx_array test # # # # # # # # # # # # 
 def get_parent_mesh(mesh_object):
 	while mesh_object.parent is not None:
 		mesh_object = mesh_object.parent
@@ -399,7 +502,7 @@ def get_mtl_block(tmlFile, rootBlock, material_info):
 
 	material_info.material.use_nodes = True
 	master = material_info.material.node_tree.nodes["Principled BSDF"]
-	self_illumi = master.inputs[18].default_value
+	self_illumi = float("{:.2f}".format(material_info.material.MtlIllumi))
 	smoothing = 0
 	ambient = 0
 	diffuse = 0
@@ -743,17 +846,33 @@ def get_nx3_new_mesh(tmlFile, rootBlock, mesh_object, materials_info , Option):
 	ani_time_array = []
 	ani_matrix_array = []
 
-	# # # # # # # # # # # # peakz animation # # # # # # # # # # # # 
+	# # # # # # # # # # # # peakz animation # # # # # # # # # # # #
 	try:
-		if mesh_object.animation_data.action and Option: # peakz
-			#print(mesh_object.name, "has animation") # for debugging 
-			transform_ani = ani_time_matrix_array(mesh_object)
+		if mesh_object.FxUse and (mesh_object.animation_data.action is None or not Option):
+			#print('fx transform ani')
+			transform_ani = ani_time_matrix_array(mesh_object, True)
 
 			for i in transform_ani[0]:
 				ani_time_array.append(i)
 			
 			for i in transform_ani[1]:
 				ani_matrix_array.append(i)
+			#print(transform_ani)
+	except Exception:
+		pass
+	try:
+		if mesh_object.animation_data.action and Option: # peakz
+			#print(mesh_object.name, "has animation") # for debugging 
+			#print('transform ani')
+			transform_ani = ani_time_matrix_array(mesh_object, False)
+
+			for i in transform_ani[0]:
+				ani_time_array.append(i)
+			
+			for i in transform_ani[1]:
+				ani_matrix_array.append(i)
+
+			#print(transform_ani)
 	except Exception:
 		pass
 	# # # # # # # # # # # # peakz animation # # # # # # # # # # # # 
@@ -814,10 +933,16 @@ def get_nx3_new_mesh(tmlFile, rootBlock, mesh_object, materials_info , Option):
 		subBlock.setDataFloat(i, visi_value_array[i])
 	block.addBlock(subBlock)
 
+	# # # # # # # # # # # # peakz fx_array test # # # # # # # # # # # # 
+
 	#nx3_fx fx_array[]
 	subBlock.create(fieldInfo.getField(8), rootBlock)
-	#unsupported, nothing to add
+	if mesh_object.FxUse:
+		fx_block = get_nx3_fx(tmlFile, rootBlock, mesh_object)
+		subBlock.addBlock(fx_block)
 	block.addBlock(subBlock)
+
+	# # # # # # # # # # # # peakz fx_array test # # # # # # # # # # # # 
 
 	#nx3_new_mesh mesh_children_array[]
 	subBlock.create(fieldInfo.getField(9), rootBlock)

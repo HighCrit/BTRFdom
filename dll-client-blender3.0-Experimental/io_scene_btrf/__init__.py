@@ -30,12 +30,18 @@ bl_info = {
 
 import bpy
 from bpy_extras.io_utils import ExportHelper, ImportHelper
-from bpy.props import StringProperty, BoolProperty, IntProperty
+from bpy.props import StringProperty, BoolProperty, IntProperty, FloatProperty
 from . import export_nx3
 from . import import_nx3
 import imp
 
+classes = []
 
+def register_class(cls):
+    classes.append(cls)
+    return cls
+
+@register_class
 class ExportBTRF(bpy.types.Operator, ExportHelper):
 	bl_idname = "export_mesh.nx3"
 	bl_label = "Export NX3"
@@ -74,6 +80,7 @@ class ExportBTRF(bpy.types.Operator, ExportHelper):
 		return {'FINISHED'}
 
 
+@register_class
 class ImportBTRF(bpy.types.Operator, ImportHelper):
 	bl_idname = "import_mesh.nx3"
 	bl_label = "Import NX3"
@@ -99,17 +106,195 @@ def menu_func_export(self, context):
 def menu_func_import(self, context):
 	self.layout.operator(ImportBTRF.bl_idname, text="Rappelz NX3 (.nx3)")
 
-classes = [
-	ExportBTRF,
-	ImportBTRF,
-	]
+
+class nxfx:  # nxfx types
+    Options = (
+        ("billboard", "billboard", ""),
+        ("after_image", "after_image", ""),
+        ("particle", "particle", ""),
+        ("reverse_particle", "reverse_particle", "")
+    )
+    
+class BlenderNx3Panel(bpy.types.Panel):
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "Nx3"
+    bl_context = "objectmode"
+    
+@register_class
+class VIEW3D_PT_BlenderNx3Main(BlenderNx3Panel): # UI BY Peakz
+    """Creates a Panel in Properties(N)"""
+
+    bl_label = "Nx3 UI by Peakz"
+    bl_idname = "VIEW3D_PT_BlenderNx3Main"
+
+    bpy.types.Object.Nxfx = bpy.props.EnumProperty(
+        name="nxfx", items=nxfx.Options
+    )
+
+    def draw(self, context):
+        if context.active_object.type == 'MESH':
+              
+            layout = self.layout
+            row = layout.row(align=False, heading='Additive Value')
+            row.scale_y = 1.5
+            if context.active_object.active_material:
+                row.prop(context.active_object.active_material, "MtlIllumi")
+            else:
+                row.label(text="The Active Object Has No Material")
+
+            col = layout.column(align=True)
+            col.prop(context.active_object, "FxUse")
+            #col.separator()
+            if context.active_object.FxUse:
+                if not context.active_object.FxUseString:
+                    col.label(text="Fx Settings :")
+                    col.prop(context.active_object, "Nxfx")
+                    nxfxType = context.active_object.Nxfx
+                
+                    if nxfxType == 'particle':
+                        col.prop(context.active_object, "FxCreateTime")
+                        col.prop(context.active_object, "FxBeginSpeed")
+                        col.prop(context.active_object, "FxVelocity")
+                        col.prop(context.active_object, "FxAngle")
+                        col.prop(context.active_object, "FxLifeTime")
+                        col.prop(context.active_object, "FxUVAni")
+                        col.prop(context.active_object, "FxLoop")
+                        col.prop(context.active_object, "FxRenderType")
+                    if nxfxType == 'billboard':
+                        col.prop(context.active_object, "FxRenderType")
+                    if nxfxType == 'reverse_particle':
+                        col.prop(context.active_object, "FxCreateTime")
+                        col.prop(context.active_object, "FxBeginSpeed")
+                        col.prop(context.active_object, "FxVelocity")
+                        col.prop(context.active_object, "FxAngle")
+                        col.prop(context.active_object, "FxLifeTime")
+                        col.prop(context.active_object, "FxUVAni")
+                        col.prop(context.active_object, "FxLoop")
+                        col.prop(context.active_object, "FxRenderType")
+                    if nxfxType == 'after_image':
+                        col.prop(context.active_object, "FxFrameTime")
+                        col.prop(context.active_object, "FxFrameNumber")
+                                    
+                col.separator()
+                col.prop(context.active_object, "FxUseString")
+                if context.active_object.FxUseString:
+                    col.prop(context.active_object, "FxString")
+
+
 
 def register():
 	for cls in classes:
+		#print(cls)
 		bpy.utils.register_class(cls)
 
 	bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
 	bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
+	
+	###### FX ######
+	bpy.types.Object.FxCreateTime = StringProperty(
+        name="CreateTime",
+        description="CreateTime",
+        default='',
+        subtype="NONE",
+    )
+        
+	bpy.types.Object.FxBeginSpeed = StringProperty(
+        name="BeginSpeed",
+        description="BeginSpeed",
+        default='',
+        subtype="NONE",
+    )
+	
+	bpy.types.Object.FxVelocity = StringProperty(
+        name="Velocity",
+        description="Velocity",
+        default='',
+        subtype="NONE",
+    )
+	
+	bpy.types.Object.FxAngle = StringProperty(
+        name="Angle",
+        description="Angle",
+        default= '',
+        subtype="NONE",
+    )
+	
+	bpy.types.Object.FxLifeTime = StringProperty(
+        name="LifeTime",
+        description="LifeTime",
+        default='',
+        subtype="NONE",
+    )
+	
+	bpy.types.Object.FxUVAni = StringProperty(
+        name="UVAni",
+        description="UVAnimation",
+        default='',
+        subtype="NONE",
+    )
+
+	bpy.types.Object.FxLoop = StringProperty(
+        name="Loop",
+        description="Loop",
+        default='',
+        subtype="NONE",
+    )
+
+	bpy.types.Object.FxRenderType = StringProperty(
+        name="RenderType",
+        description="RenderType",
+        default='0',
+        subtype="NONE",
+    )
+
+	bpy.types.Object.FxFrameTime = IntProperty(
+        name="FrameTime",
+        description="FrameTime",
+        default=50,
+        subtype="NONE",
+    )
+
+	bpy.types.Object.FxFrameNumber = IntProperty(
+        name="FrameNumber",
+        description="FrameNumber",
+        default=200,
+        subtype="NONE",
+    )
+
+	bpy.types.Object.FxUseString = BoolProperty(
+        name="Use Text",
+        description="Use Text args seperated by a dot ",
+        default=False,
+        subtype="NONE",
+    )
+
+	bpy.types.Object.FxUse = BoolProperty(
+        name="Use Fx",
+        description="Use Fx For This Object",
+        default=False,
+        subtype="NONE",
+    )
+
+	bpy.types.Object.FxString = StringProperty(
+        name="Fx String",
+        description="Fx text seperated by a dot ",
+        default='',
+        subtype="NONE",
+    )
+
+    ###### Material ######
+	bpy.types.Material.MtlIllumi = FloatProperty(
+        name="",
+        description="The Additive Value of the Active Material",
+        default=0,
+        max=1,
+        min=0,
+        step=1,
+        precision=1,
+        subtype="NONE",
+    )
+
 
 
 def unregister():
@@ -118,6 +303,28 @@ def unregister():
 	
 	bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
 	bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
+        
+    ###### FX ######
+	ob = bpy.types.Object
+
+	del ob.FxUse
+	del ob.FxCreateTime
+	del ob.FxBeginSpeed
+	del ob.FxVelocity
+	del ob.FxAngle
+	del ob.FxLifeTime
+	del ob.FxLoop
+	del ob.FxUVAni
+	del ob.FxRenderType
+	del ob.FxFrameTime
+	del ob.FxFrameNumber
+	del ob.FxUseString
+	del ob.FxString
+        
+    ###### Material ######
+	mtl= bpy.types.Material
+
+	del mtl.MtlIllumi
 
 if __name__ == "__main__":
 	register()

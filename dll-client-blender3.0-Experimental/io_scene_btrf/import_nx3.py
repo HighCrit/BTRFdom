@@ -135,7 +135,7 @@ import mathutils
 from .btrfdom import BtrfParser, TmlFile
 import os
 
-BlenderVersionMajor, BlenderVersionMinor = bpy.app.version[:2]
+
 
 nx3_version_header_guid = uuid.UUID('{81BCE021-AD76-346f-9C7D-19885FD118B6}')
 
@@ -165,10 +165,7 @@ def error(str):
 
 
 def create_anim_fcurve(action, data_path, index, count):
-	if BlenderVersionMajor < 3 and BlenderVersionMinor < 80 :
-		keyframe = action.fcurves.new(data_path, index)
-	else:	
-		keyframe = action.fcurves.new(data_path=data_path, index =index)
+	keyframe = action.fcurves.new(data_path=data_path, index =index)
 
 	keyframe.keyframe_points.add(count)
 	for point in keyframe.keyframe_points:
@@ -238,32 +235,16 @@ def read_materials(rootBlock, file_dir):
 				materials[mtl_id] = []
 
 			materials[mtl_id].append((material, image))
-			if BlenderVersionMajor < 3 and BlenderVersionMinor < 80 :
-				material.emit = self_illumi
-				material.use_face_texture = True
-				material.use_face_texture_alpha = True
-
-				if image:
-					texture_slot = material.texture_slots.add()
-					texture = bpy.data.textures.new(texture_name, 'IMAGE')
-					texture.image = image
-					texture.use_alpha = True
-
-					texture_slot.texture = texture
-					texture_slot.texture_coords = 'UV'
-					texture_slot.use_map_color_diffuse = True
-					texture_slot.use_map_color_emission = True
-			else:
-				material.use_nodes = True
-				master = material.node_tree.nodes["Principled BSDF"]
-				master.inputs[18].default_value = self_illumi
-				#material.use_face_texture_alpha = True
-				if image:
-					texture = material.node_tree.nodes.new('ShaderNodeTexImage')
-					texture.image = image
-					material.node_tree.links.new(master.inputs[0], texture.outputs['Color'])
-					material.node_tree.links.new(master.inputs[19], texture.outputs['Color'])
-					material.node_tree.links.new(master.inputs[21], texture.outputs['Alpha'])
+			material.use_nodes = True
+			master = material.node_tree.nodes["Principled BSDF"]
+			master.inputs[18].default_value = self_illumi
+			#material.use_face_texture_alpha = True
+			if image:
+				texture = material.node_tree.nodes.new('ShaderNodeTexImage')
+				texture.image = image
+				material.node_tree.links.new(master.inputs[0], texture.outputs['Color'])
+				material.node_tree.links.new(master.inputs[19], texture.outputs['Color'])
+				material.node_tree.links.new(master.inputs[21], texture.outputs['Alpha'])
 
 	return materials
 
@@ -358,10 +339,7 @@ def read_mesh_block(mesh_block_template, mesh_object, bm, mtl_textures):
 
 	if has_texture:
 		uv_layer = bm.loops.layers.uv.verify()
-		if BlenderVersionMajor < 3 and BlenderVersionMinor < 80 :
-			tex_layer = bm.faces.layers.tex.verify()
-		else:
-			tex_layer = bm.faces.layers.face_map.verify()
+		tex_layer = bm.faces.layers.face_map.verify()
 
 	for face_indices in face_array:
 		try:
@@ -370,8 +348,6 @@ def read_mesh_block(mesh_block_template, mesh_object, bm, mtl_textures):
 			continue
 		if has_texture:
 			face.material_index = material_id
-			if BlenderVersionMajor < 3 and BlenderVersionMinor < 80 :
-				face[tex_layer].image = material_image
 			face.loops[0][uv_layer].uv = texel_data[face_indices[0]]
 			face.loops[1][uv_layer].uv = texel_data[face_indices[1]]
 			face.loops[2][uv_layer].uv = texel_data[face_indices[2]]
@@ -418,14 +394,12 @@ def read_mesh(mesh_template, materials, armature):
 	visi_time_array = [mesh_template.getBlock(6).getDataInt(i) for i in range(mesh_template.getBlock(6).getElementNumber())]
 	visi_value_array = [mesh_template.getBlock(7).getDataFloat(i) for i in range(mesh_template.getBlock(7).getElementNumber())]
 
+
 	mesh_children_array = [mesh_template.getBlock(9).getBlock(i) for i in range(mesh_template.getBlock(9).getElementNumber())]
 
 	mesh = bpy.data.meshes.new(name)
 	mesh_object = bpy.data.objects.new(name, mesh)
-	if BlenderVersionMajor < 3 and BlenderVersionMinor < 80 :
-		bpy.context.scene.objects.link(mesh_object)
-	else:
-		bpy.context.scene.collection.objects.link(mesh_object)
+	bpy.context.scene.collection.objects.link(mesh_object)
 
 	mesh_object.parent = armature
 	armature_modifier = mesh_object.modifiers.new(armature.name, 'ARMATURE')
@@ -456,10 +430,7 @@ def read_mesh(mesh_template, materials, armature):
 				bone.tail = (0, 1, 0)
 
 			if bone_name not in list(mesh_object.vertex_groups.keys()):
-				if BlenderVersionMajor < 3 and BlenderVersionMinor < 80 :
-					vertex_group = mesh_object.vertex_groups.new(bone_name)
-				else:
-					vertex_group = mesh_object.vertex_groups.new(name = bone_name)
+				vertex_group = mesh_object.vertex_groups.new(name = bone_name)
 			else:
 				vertex_group = mesh_object.vertex_groups[bone_name]
 
@@ -520,12 +491,8 @@ def read_mesh(mesh_template, materials, armature):
 	if len(visi_time_array) > 0:
 		visibility_keyframes = [None] * len(mesh_object.data.materials)
 		for i, material in enumerate(mesh_object.data.materials):
-			if BlenderVersionMajor < 3 and BlenderVersionMinor < 80 :
-				material.use_transparency = True
-				material.transparency_method = 'Z_TRANSPARENCY'
-			else:
-				material.blend_method = 'HASHED'
-				material.shadow_method = 'HASHED'
+			material.blend_method = 'HASHED'
+			material.shadow_method = 'HASHED'
 
 			anim_data = material.animation_data_create()
 			anim_data.action = bpy.data.actions.new(name + "_visibility_anim")
@@ -585,16 +552,10 @@ def read_mesh_header(rootBlock, materials, filename):
 	# Create armature with the filename as name, then an object with the same name
 	armature_data = bpy.data.armatures.new(filename)
 	armature = bpy.data.objects.new(filename, armature_data)
-	if BlenderVersionMajor < 3 and BlenderVersionMinor < 80 :
-		bpy.context.scene.objects.link(armature)
-		bpy.context.scene.update()
-		bpy.context.scene.objects.active = armature
-		armature.select = True
-	else:
-		bpy.context.scene.collection.objects.link(armature)
-		bpy.context.evaluated_depsgraph_get().update()
-		bpy.context.view_layer.objects.active = armature
-		armature.select_set(True)
+	bpy.context.scene.collection.objects.link(armature)
+	bpy.context.evaluated_depsgraph_get().update()
+	bpy.context.view_layer.objects.active = armature
+	armature.select_set(True)
 
 	for mesh in mesh_array:
 		read_mesh(mesh, materials, armature)
