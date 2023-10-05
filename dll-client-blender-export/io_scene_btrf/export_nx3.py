@@ -446,12 +446,10 @@ def get_mtl_data(tmlFile, rootBlock, materials_info):
 
 	arrayBlock = BtrfBlock()
 	arrayBlock.create(fieldInfo.getField(0), rootBlock)
-	#iterate over all used materials
 
-	for materials_info_per_object in list(materials_info.values()):
-		for material_info in materials_info_per_object:
-			subBlock = get_mtl_block(tmlFile, rootBlock, material_info)
-			arrayBlock.addBlock(subBlock)
+	for material_info in materials_info:
+		subBlock = get_mtl_block(tmlFile, rootBlock, material_info)
+		arrayBlock.addBlock(subBlock)
 
 	block.addBlock(arrayBlock)
 	return block
@@ -466,8 +464,11 @@ def write_mtl_header(tmlFile, rootBlock, materials_info):
 
 	arrayBlock = BtrfBlock()
 	arrayBlock.create(fieldInfo.getField(0), rootBlock)
-	subBlock = get_mtl_data(tmlFile, rootBlock, materials_info)
-	arrayBlock.addBlock(subBlock)
+
+	for materials_info_per_object in list(materials_info.values()):
+		subBlock = get_mtl_data(tmlFile, rootBlock, materials_info_per_object)
+		arrayBlock.addBlock(subBlock)
+		
 	block.addBlock(arrayBlock)
 
 	rootBlock.addBlock(block)
