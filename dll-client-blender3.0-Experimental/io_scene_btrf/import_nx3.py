@@ -143,13 +143,19 @@ nx3_mtl_header_guid = uuid.UUID('{209BBB41-681F-4b9b-9744-4D88E1413DCC}')
 nx3_mtl_guid = uuid.UUID('{52BCCAA6-3C16-4286-8B9E-1A798F9D94DE}')
 nx3_mtl_block_guid = uuid.UUID('{81BCE071-AC76-496f-9C7D-19885FD118B6}')
 
-nx3_new_mesh_header_guid = uuid.UUID('{A6D25AEB-A735-1fef-C17D-EE2117498226}')
+nx3_new_mesh_header_guid = uuid.UUID('{A6D25AEB-A735-1FEF-C17D-EE2117498226}')
+#nx3_mesh_header_guid = uuid.UUID('{D6D25AEB-A735-4FEF-A17D-6E2117498226}')
+
 nx3_new_mesh_guid = uuid.UUID('{1718DC1B-1DB1-458a-9C7E-C3D46FC4585B}')
+#nx3_mesh_guid = uuid.UUID('{748DC1A-1DB1-458A-9C7E-B3D46FC4585B}')
+
 nx3_mesh_block_guid = uuid.UUID('{C817F7B0-E4E7-40fb-97B3-2B97CC000521}')
 nx3_mesh_frame_guid = uuid.UUID('{1C77954B-CDD5-4615-B7AD-F23BD3D0C23E}')
 nx3_weight_frame_guid = uuid.UUID('{B513DF30-80BE-44f4-980B-84B9D979A607}')
 nx3_mesh_tm_guid = uuid.UUID('{F09C560E-7328-411e-87A3-EEB165D5F929}')
 
+nx3_fx_guid = uuid.UUID('22C5CCD2-C9FC-4AA8-A63A-6677296313F8')
+nx3_fx_block_guid = uuid.UUID('83A78B40-C401-451D-8AE2-D26BEAB73E5A')
 
 def info(str):
 	print(('btrfdom: Info: ' + str))
@@ -185,6 +191,16 @@ def check_version(rootBlock):
 	if version != 65536:
 		warn('The version is not 65536, the model may not be read correctly')
 
+########################### fx ############################################
+
+def read_fx_block(fx_array_block_template):
+	mesh_data = fx_array_block_template
+	time = mesh_data.getBlock(0).getDataInt(0)
+	note = mesh_data.getBlock(1).getDataString(0)
+	#print(time, note)
+	return time, note
+
+########################### fx ############################################
 
 def read_materials(rootBlock, file_dir):
 	nx3_mtl_header_block = rootBlock.getBlockByGuid(nx3_mtl_header_guid.bytes_le)
@@ -224,7 +240,7 @@ def read_materials(rootBlock, file_dir):
 			# info("Reading material %s with texture %s" % (mtl_name, texture_file))
 
 			material = bpy.data.materials.new(mtl_name)
-
+			material.MtlIllumi = self_illumi
 			try:
 				image = bpy.data.images.load(texture_file)
 			except:
@@ -237,7 +253,7 @@ def read_materials(rootBlock, file_dir):
 			materials[mtl_id].append((material, image))
 			material.use_nodes = True
 			master = material.node_tree.nodes["Principled BSDF"]
-			master.inputs[18].default_value = self_illumi
+
 			#material.use_face_texture_alpha = True
 			if image:
 				texture = material.node_tree.nodes.new('ShaderNodeTexImage')
@@ -371,7 +387,8 @@ def read_mesh_block(mesh_block_template, mesh_object, bm, mtl_textures):
 
 
 def time_to_frame(time):
-	return int(time / 5000 * bpy.context.scene.render.fps * bpy.context.scene.render.fps_base)
+	#return int(time / 5000 * bpy.context.scene.render.fps * bpy.context.scene.render.fps_base)
+	return int(time / 5000 * 31.25 * bpy.context.scene.render.fps_base)
 
 
 def read_mesh(mesh_template, materials, armature):
@@ -394,11 +411,50 @@ def read_mesh(mesh_template, materials, armature):
 	visi_time_array = [mesh_template.getBlock(6).getDataInt(i) for i in range(mesh_template.getBlock(6).getElementNumber())]
 	visi_value_array = [mesh_template.getBlock(7).getDataFloat(i) for i in range(mesh_template.getBlock(7).getElementNumber())]
 
+	########################### fx ############################################
 
+	fx_array = mesh_template.getBlock(8)
+	time_fx = []
+
+	if fx_array.getElementNumber() > 0:
+		fx_main = fx_array.getBlock(0).getBlock(0)
+		fx_blocks = [fx_main.getBlock(i) for i in range(fx_main.getElementNumber())]
+		for i, block in enumerate(fx_blocks):
+			#print("i is", i)
+			templist = read_fx_block(block)
+			for i in range(2):
+				#print("templist is" , templist[i])
+				time_fx.append(templist[i])
+
+	########################### fx ############################################
 	mesh_children_array = [mesh_template.getBlock(9).getBlock(i) for i in range(mesh_template.getBlock(9).getElementNumber())]
 
 	mesh = bpy.data.meshes.new(name)
 	mesh_object = bpy.data.objects.new(name, mesh)
+	
+	if fx_array.getElementNumber() > 0:
+		for index in range(fx_main.getElementNumber()):
+			#print("index is",index)
+			print(time_fx[index*2]/160)
+			print(time_fx[index*2+1])
+
+			mesh_object.FxUse = True
+			mesh_object.Fx_list.add()
+
+			## Time
+			frame = int(time_fx[index*2]/160)
+			## Fxstring 
+			FxString = time_fx[index*2+1].replace('\n','.').replace('..','.') # FX Import
+			if FxString[0] == '.':
+				FxString = FxString[1:]
+			if FxString[-1] == '.':
+				FxString = FxString[:-1]
+			
+			item = mesh_object.Fx_list[index]
+			item.FxUseString = True
+			item.frame = str(frame)
+			item.FxString = FxString
+
 	bpy.context.scene.collection.objects.link(mesh_object)
 
 	mesh_object.parent = armature
@@ -486,27 +542,32 @@ def read_mesh(mesh_template, materials, armature):
 			scale_keyframes[2][i].co = frame_id, rot_matrix.to_scale()[2]
 
 		bpy.context.scene.frame_end = time_to_frame(ani_time_array[len(ani_time_array) - 1])
-
+		bpy.context.scene.frame_start = 0
+		
 	# visibility handling (object transparency)
-	if len(visi_time_array) > 0:
-		visibility_keyframes = [None] * len(mesh_object.data.materials)
-		for i, material in enumerate(mesh_object.data.materials):
-			material.blend_method = 'HASHED'
-			material.shadow_method = 'HASHED'
+	try:
+		if len(visi_time_array) > 0:
+			visibility_keyframes = [None] * len(mesh_object.data.materials)
+			print(visibility_keyframes)
+			for i, material in enumerate(mesh_object.data.materials):
+				material.blend_method = 'HASHED'
+				material.shadow_method = 'HASHED'
+				
+				anim_data = mesh_object.animation_data
+				#anim_data.action = bpy.data.actions.new(name + "_visibility_anim")
+				
+				anim_action = anim_data.action
 
-			anim_data = material.animation_data_create()
-			anim_data.action = bpy.data.actions.new(name + "_visibility_anim")
-			anim_action = anim_data.action
+				visibility_keyframes[i] = create_anim_fcurve(anim_action, "OBJVisi", 0, len(visi_time_array))
+			
+			for i, time in enumerate(visi_time_array):
+					frame_id = time_to_frame(time)
+					for visibility_keyframes_per_mtl in visibility_keyframes:
+						visibility_keyframes_per_mtl[i].co = frame_id, visi_value_array[i]
 
-			visibility_keyframes[i] = create_anim_fcurve(anim_action, "alpha", 0, len(visi_time_array))
-
-		for i, time in enumerate(visi_time_array):
-				frame_id = time_to_frame(time)
-				for visibility_keyframes_per_mtl in visibility_keyframes:
-					visibility_keyframes_per_mtl[i].co = frame_id, visi_value_array[i]
-
-		bpy.context.scene.frame_end = max(bpy.context.scene.frame_end, time_to_frame(visi_time_array[len(visi_time_array) - 1]))
-
+			bpy.context.scene.frame_end = max(bpy.context.scene.frame_end, time_to_frame(visi_time_array[len(visi_time_array) - 1]))
+	except Exception as ex:
+		print("VISI ERROR",ex)
 	# children handling (recursive)
 	for children in mesh_children_array:
 		read_mesh(children, materials, armature).parent = mesh_object
@@ -517,6 +578,12 @@ def read_mesh(mesh_template, materials, armature):
 def read_bones_tm_matrix(bone_tm, armature):
 	name = bone_tm.getBlock(0).getDataString(0)
 
+	if name.replace(' ','_') in armature.pose.bones:
+		name = name.replace(' ','_')
+	
+	if name.replace('@','_') in armature.pose.bones:
+		name = name.replace('@','_')
+
 	tm = [bone_tm.getBlock(1).getDataFloat(i) for i in range(16)]
 
 	#lint:disable
@@ -526,21 +593,27 @@ def read_bones_tm_matrix(bone_tm, armature):
 								(tm[3], tm[7], tm[11], tm[15])))
 	#lint:enable
 
-	# try:
+	try:
 	# transposition problem with rotation matrix
-	rotation = matrix.inverted().to_3x3()
-	translation = matrix.inverted().to_translation()
+		rotation = matrix.inverted().to_3x3()
+		translation = matrix.inverted().to_translation()
 
-	#Don't use directly the 4x4 matrix as it lead to bad results
-	armature.data.edit_bones[name].transform(rotation)
-	armature.data.edit_bones[name].translate(translation)
-	# except:
-		# print("Bone %s not found in armature %s" % (name, armature.name))
+		#Don't use directly the 4x4 matrix as it lead to bad results
+		armature.data.edit_bones[name].transform(rotation)
+		armature.data.edit_bones[name].translate(translation)
+	except:
+		print("Bone %s not found in armature %s" % (name, armature.name))
 
 
 def read_mesh_header(rootBlock, materials, filename):
 	nx3_mesh_header_block = rootBlock.getBlockByGuid(nx3_new_mesh_header_guid.bytes_le)
+	#try:
 	mesh_template_array = nx3_mesh_header_block.getBlock(0)
+	#except:
+	#	nx3_mesh_header_block = rootBlock.getBlockByGuid(nx3_mesh_header_guid.bytes_le)
+	#	mesh_template_array = nx3_mesh_header_block.getBlock(0)
+		
+	
 	bones_tm_template_array = nx3_mesh_header_block.getBlock(1)
 
 	mesh_array = [mesh_template_array.getBlock(i) for i in range(mesh_template_array.getElementNumber())]

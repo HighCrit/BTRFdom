@@ -242,13 +242,15 @@ def ani_time_matrix_array(mesh_object, Fx):
 	ani_array = []
 	Scene = bpy.data.scenes['Scene']
 	if not Fx:
-		#framecount = Scene.frame_end + 1 
 		for frame in range(Scene.frame_start, Scene.frame_end + 1):
-			#print(frame) for debugging
+
 			Scene.frame_set(frame, subframe=0.0)
+			add = 0
+			if int(frame) != 0:
+				add = int((frame- 1) / 6)
 
 			# time array
-			time_array.append(frame * 160)
+			time_array.append(frame * 160 + add)
 
 			# ani array
 			A = to_array(mesh_object.matrix_world)
@@ -258,10 +260,14 @@ def ani_time_matrix_array(mesh_object, Fx):
 			A.clear()
 	else:
 		frame = Scene.frame_start
-	
 		Scene.frame_set(frame, subframe=0.0)
+
+		add = 0
+		if int(frame) != 0:
+			add = int((frame- 1) / 6)
+
 		# time array
-		time_array.append(frame * 160)
+		time_array.append(frame * 160 + add)
 
 		# ani array
 		A = to_array(mesh_object.matrix_world)
@@ -271,6 +277,40 @@ def ani_time_matrix_array(mesh_object, Fx):
 		A.clear()
 	return time_array, ani_array
 # # # # # # # # # # # # peakz animation # # # # # # # # # # # # 
+
+# # # # # # # # # # # # peakz Visibility # # # # # # # # # # # # 
+def get_visi_time_value_array(mesh_object):
+	time_array = []
+	value_array = []
+	Scene = bpy.data.scenes['Scene']
+	try:
+		fcu = mesh_object.animation_data.action.fcurves.find("OBJVisi", index=0)
+		nofcu = False
+	except:
+		nofcu = True
+		print(" no visibility found")
+	if not nofcu and fcu is not None:
+		for keyframe in fcu.keyframe_points:
+			add = 0
+			if int(keyframe.co[0]) != 0:
+				add = int((keyframe.co[0]- 1) / 6)
+
+			# time array
+			time_array.append(int(keyframe.co[0]) * 160 + add)
+
+			# value array
+			value_array.append(keyframe.co[1])
+	else:
+		# time array
+		time_array.append(0)
+
+		# value array
+		value_array.append(mesh_object.OBJVisi)
+
+	return time_array, value_array
+
+
+# # # # # # # # # # # # peakz Visibility # # # # # # # # # # # # 
 
 # # # # # # # # # # # # peakz fx_array test # # # # # # # # # # # # 
 
@@ -282,7 +322,7 @@ def fx_string_add(fx_string, string):
 def insert_newline(string, index):
     return string[:index] + '\n' + string[index+1:]
 
-def get_nx3_fx_block(tmlFile, rootBlock, mesh_object):
+def get_nx3_fx_block(tmlFile, rootBlock, mesh_object, index):
 	#Create a block that will contain the data of the template
 	fieldInfo = tmlFile.getTemplateByGuid(nx3_fx_block_guid.bytes_le)
 
@@ -290,50 +330,60 @@ def get_nx3_fx_block(tmlFile, rootBlock, mesh_object):
 	block.create(fieldInfo, rootBlock)
 
 	ob = mesh_object
+	item = ob.Fx_list[ob.Fxlist_index]
+
 	nxfxType = ob.Nxfx
+	item = ob.Fx_list[index]
+
+	add = 0
+	if int(item.frame) != 0:
+		add = int((int(item.frame) - 1) / 6)
+
+	time = int(item.frame) * 160 + add
 	fx_string = ''
 	
-	if not ob.FxUseString:
+	if not item.FxUseString and index == 0:
 		if nxfxType == 'billboard':
 			fx_string = f'nxfx={nxfxType}'
-			fx_string = fx_string_add(fx_string, f'RenderType={ob.FxRenderType}')
+			fx_string = fx_string_add(fx_string, f'RenderType={item.FxRenderType}')
 		if nxfxType == 'particle':
 			fx_string = f'nxfx={nxfxType}'
-			fx_string = fx_string_add(fx_string, f'createtime={ob.FxCreateTime}')
-			fx_string = fx_string_add(fx_string, f'beginspeed={ob.FxBeginSpeed}')
-			fx_string = fx_string_add(fx_string, f'velocity={ob.FxVelocity}')
-			fx_string = fx_string_add(fx_string, f'angle={ob.FxAngle}')
-			fx_string = fx_string_add(fx_string, f'lifetime={ob.FxLifeTime}')
-			fx_string = fx_string_add(fx_string, f'uvani={ob.FxUVAni}')
-			fx_string = fx_string_add(fx_string, f'loop={ob.FxLoop}')
-			fx_string = fx_string_add(fx_string, f'rendertype={ob.FxRenderType}')
+			fx_string = fx_string_add(fx_string, f'createtime={item.FxCreateTime}')
+			fx_string = fx_string_add(fx_string, f'beginspeed={item.FxBeginSpeed}')
+			fx_string = fx_string_add(fx_string, f'velocity={item.FxVelocity}')
+			fx_string = fx_string_add(fx_string, f'angle={item.FxAngle}')
+			fx_string = fx_string_add(fx_string, f'lifetime={item.FxLifeTime}')
+			fx_string = fx_string_add(fx_string, f'uvani={item.FxUVAni}')
+			fx_string = fx_string_add(fx_string, f'loop={item.FxLoop}')
+			fx_string = fx_string_add(fx_string, f'rendertype={item.FxRenderType}')
 		if nxfxType == 'reverse_particle':
 			fx_string = f'nxfx={nxfxType}'
-			fx_string = fx_string_add(fx_string, f'createtime={ob.FxCreateTime}')
-			fx_string = fx_string_add(fx_string, f'beginspeed={ob.FxBeginSpeed}')
-			fx_string = fx_string_add(fx_string, f'velocity={ob.FxVelocity}')
-			fx_string = fx_string_add(fx_string, f'angle={ob.FxAngle}')
-			fx_string = fx_string_add(fx_string, f'lifetime={ob.FxLifeTime}')
-			fx_string = fx_string_add(fx_string, f'uvani={ob.FxUVAni}')
-			fx_string = fx_string_add(fx_string, f'loop={ob.FxLoop}')
-			fx_string = fx_string_add(fx_string, f'rendertype={ob.FxRenderType}')
+			fx_string = fx_string_add(fx_string, f'createtime={item.FxCreateTime}')
+			fx_string = fx_string_add(fx_string, f'beginspeed={item.FxBeginSpeed}')
+			fx_string = fx_string_add(fx_string, f'velocity={item.FxVelocity}')
+			fx_string = fx_string_add(fx_string, f'angle={item.FxAngle}')
+			fx_string = fx_string_add(fx_string, f'lifetime={item.FxLifeTime}')
+			fx_string = fx_string_add(fx_string, f'uvani={item.FxUVAni}')
+			fx_string = fx_string_add(fx_string, f'loop={item.FxLoop}')
+			fx_string = fx_string_add(fx_string, f'rendertype={item.FxRenderType}')
 		if nxfxType == 'after_image':
 			fx_string = f'nxfx={nxfxType}'
-			fx_string = fx_string_add(fx_string, f'frametime={str(ob.FxFrameTime)}')
-			fx_string = fx_string_add(fx_string, f'framenumber={str(ob.FxFrameNumber)}')
+			fx_string = fx_string_add(fx_string, f'frametime={str(item.FxFrameTime)}')
+			fx_string = fx_string_add(fx_string, f'framenumber={str(item.FxFrameNumber)}')
 	else:
-		fx_string = ob.FxString
+
+		fx_string = item.FxString
 		for i, t in enumerate(fx_string):
 			if fx_string[i] == '.':
 				if not fx_string[i-1].isnumeric() or not fx_string[i+1].isnumeric():
 					fx_string = insert_newline(fx_string, i)
-		
 	
+	print(time)
 	print(fx_string)
 	#dword  time_value
 	subBlock = BtrfBlock()
 	subBlock.create(fieldInfo.getField(0), rootBlock)
-	subBlock.setDataInt(0, 0) # UV frame start unsupported for now
+	subBlock.setDataInt(0, time) 
 	block.addBlock(subBlock)
 
 	#nx3_fx_block  fx_array[]
@@ -351,12 +401,19 @@ def get_nx3_fx(tmlFile, rootBlock, mesh_object):
 	block = BtrfBlock()
 	block.create(fieldInfo, rootBlock)
 
-	nx3_fx_block = get_nx3_fx_block(tmlFile, rootBlock, mesh_object)
+	nx3_fx_blocks = []
 
+	ob = mesh_object
+
+	for index, frame in enumerate(ob.Fx_list):
+		nx3_fx_block = get_nx3_fx_block(tmlFile, rootBlock, mesh_object, index)
+		nx3_fx_blocks.append(nx3_fx_block)
 	#nx3_fx_block  fx_array[]
 	subBlock = BtrfBlock()
 	subBlock.create(fieldInfo.getField(0), rootBlock)
-	subBlock.addBlock(nx3_fx_block)
+	for nx3_fx_block in nx3_fx_blocks:
+		#print(nx3_fx_block)
+		subBlock.addBlock(nx3_fx_block)
 	block.addBlock(subBlock)
 
 	return block
@@ -571,13 +628,11 @@ def get_mtl_data(tmlFile, rootBlock, materials_info):
 
 	arrayBlock = BtrfBlock()
 	arrayBlock.create(fieldInfo.getField(0), rootBlock)
-	#iterate over all used materials
-
-	for materials_info_per_object in list(materials_info.values()):
-		for material_info in materials_info_per_object:
-			subBlock = get_mtl_block(tmlFile, rootBlock, material_info)
-			arrayBlock.addBlock(subBlock)
-
+	
+	for material_info in materials_info:
+		subBlock = get_mtl_block(tmlFile, rootBlock, material_info)
+		arrayBlock.addBlock(subBlock)
+		
 	block.addBlock(arrayBlock)
 	return block
 
@@ -591,8 +646,11 @@ def write_mtl_header(tmlFile, rootBlock, materials_info):
 
 	arrayBlock = BtrfBlock()
 	arrayBlock.create(fieldInfo.getField(0), rootBlock)
-	subBlock = get_mtl_data(tmlFile, rootBlock, materials_info)
-	arrayBlock.addBlock(subBlock)
+	
+	for materials_info_per_object in list(materials_info.values()):
+		subBlock = get_mtl_data(tmlFile, rootBlock, materials_info_per_object)
+		arrayBlock.addBlock(subBlock)
+	
 	block.addBlock(arrayBlock)
 
 	rootBlock.addBlock(block)
@@ -665,7 +723,9 @@ def get_nx3_mesh_frame(tmlFile, rootBlock, mesh_matrix, vertex_info_array, verte
 
 	time_value = 0
 	ordered_vertex_info = sorted(vertex_info_array, key=vertex_info_array.__getitem__)
+	
 	vertex_array = [coord for vertex_info in ordered_vertex_info for coord in vertex_info.vertex]
+	#print(vertex_array)
 	normal_array = [coord for vertex_info in ordered_vertex_info for coord in vertex_info.normal]
 
 	if has_texel is True:
@@ -677,7 +737,10 @@ def get_nx3_mesh_frame(tmlFile, rootBlock, mesh_matrix, vertex_info_array, verte
 
 	vertex_indices = [vertex_info.vertex_index for vertex_info in ordered_vertex_info]
 	bone_block = [get_nx3_weight_frame(tmlFile, rootBlock, vertex_group, vertex_indices) for vertex_group in vertex_groups]
+	
+
 	mesh_tm = [val for vect in mesh_matrix.transposed() for val in vect]
+	#mesh_tm = [float("{:.5f}".format(val)) for vect in mesh_matrix.transposed() for val in vect]
 
 	#dword  time_value
 	subBlock = BtrfBlock()
@@ -751,10 +814,12 @@ def get_nx3_mesh_block(tmlFile, rootBlock, mesh_object, mesh_data, mesh_block_fa
 	index_array = []
 
 	#mesh_data.flip_normals()
-
+	
 	for face in mesh_block_faces:
+		
 		for vertex_index, loops_idx in reversed(list(zip(face.vertices, face.loop_indices))):    # reversed instead of enumerate else normals are wrong
-			#print(i, vertex_index, end=" ;  ")
+		#for vertex_index, loops_idx in list(zip(face.vertices, face.loop_indices)):    # reversed instead of enumerate else normals are wrong
+			#print(vertex_index, end=" ;  ")
 			if has_texture:
 				uv_texture = mesh_data.uv_layers[0] #mesh_data.uv_layers[0] 
 
@@ -769,15 +834,14 @@ def get_nx3_mesh_block(tmlFile, rootBlock, mesh_object, mesh_data, mesh_block_fa
 			if vertex_info in vertex_info_array:
 				index_array.append(vertex_info_array[vertex_info])
 			else:
-				index = len(vertex_info_array)
+				#index = len(vertex_info_array)
+				index = vertex_info.vertex_index
 				vertex_info_array[vertex_info] = index
 				index_array.append(index)
 			j -= 1
-			
-
-	
-
+	#print(vertex_info_array)
 	mesh_frame = get_nx3_mesh_frame(tmlFile, rootBlock, mesh_object.matrix_world, vertex_info_array, vertex_groups, has_texture)
+
 
 	#mesh_data.flip_normals()
 	#dword  texture_index
@@ -808,6 +872,7 @@ def get_nx3_new_mesh(tmlFile, rootBlock, mesh_object, materials_info , Option):
 	block.create(fieldInfo, rootBlock)
 
 	mesh_data = mesh_object.to_mesh(preserve_all_data_layers=True, depsgraph=None)
+
 	mesh_data.update(calc_edges=False, calc_edges_loose=False)
 
 	if mesh_object.name in materials_info and len(materials_info[mesh_object.name]) > 0 and len(mesh_data.uv_layers) > 0:
@@ -876,10 +941,23 @@ def get_nx3_new_mesh(tmlFile, rootBlock, mesh_object, materials_info , Option):
 	except Exception:
 		pass
 	# # # # # # # # # # # # peakz animation # # # # # # # # # # # # 
-	
+
+	# # # # # # # # # # # # peakz Visibility # # # # # # # # # # # # 
 	visi_time_array = []
 	visi_value_array = []
-	#fx_array = []
+
+	visi_time_value_array = get_visi_time_value_array(mesh_object)
+
+	for i in visi_time_value_array[0]:
+		visi_time_array.append(i)
+
+	for i in visi_time_value_array[1]:
+		visi_value_array.append(i)
+	#print(visi_time_array)
+	#print(visi_value_array)
+
+	# # # # # # # # # # # # peakz Visibility # # # # # # # # # # # # 
+
 	children_objects = get_children_meshes(mesh_object)
 	mesh_children_array = [get_nx3_new_mesh(tmlFile, rootBlock, child_object, materials_info, Option) for child_object in children_objects]
 
