@@ -20,13 +20,13 @@
 #
 
 bl_info = {
-	"name": "Rappelz NX3 format",
-	"author": "Glandu2/Ldxngx, Updated to 3.0 by Andrej Tetkic",
-	"blender": (3, 0, 0),
-	"version": (0, 2, 0),
-	"location": "File > Import-Export",
-	"description": "Export to a Rappelz NX3 file",
-	"category": "Import-Export"}
+    "name": "Rappelz NX3 format",
+    "author": "Glandu2/Peakz",
+    "blender": (3, 0, 0),
+    "version": (1, 6, 1),
+    "location": "File > Import-Export",
+    "description": "Export to a Rappelz NX3 file",
+    "category": "Import-Export"}
 
 import bpy
 from bpy_extras.io_utils import ExportHelper, ImportHelper
@@ -35,6 +35,7 @@ from bpy.types import PropertyGroup, UIList, Operator, Panel
 from . import export_nx3
 from . import import_nx3
 import imp
+from os import path
 
 classes = []
 
@@ -44,68 +45,74 @@ def register_class(cls):
 
 @register_class
 class ExportBTRF(bpy.types.Operator, ExportHelper):
-	bl_idname = "export_mesh.nx3"
-	bl_label = "Export NX3"
-	bl_options = {'PRESET'}
+    bl_idname = "export_mesh.nx3"
+    bl_label = "Export NX3"
+    bl_options = {'PRESET'}
 
-	filepath : StringProperty(
-			subtype='FILE_PATH',
-			)
+    filepath : StringProperty(
+            subtype='FILE_PATH',
+            )
 
-	filename_ext = ".nx3"
+    filename_ext = ".nx3"
 
-	#peakz
-	use_collection: BoolProperty(
+    #peakz
+    use_collection: BoolProperty(
         name="Active Collection Only",
         description="Export Active Collection's objects only",
         default=False,
     )
 
-	use_selection: BoolProperty(
+    use_selection: BoolProperty(
         name="Selection Only",
         description="Export Selected objects only",
         default=False,
     )
 
-	use_Tanimation: BoolProperty(
+    use_Tanimation: BoolProperty(
         name="Export Transform Animation",
         description="Export Transform Animation (Location, Rotation, Scale)",
         default=False,
     )
 
 
-	def execute(self, context):
-		options =[self.use_collection, self.use_selection, self.use_Tanimation]
-		imp.reload(export_nx3)
-		export_nx3.write(self.filepath,*options)
-		return {'FINISHED'}
+    def execute(self, context):
+        options =[self.use_collection, self.use_selection, self.use_Tanimation]
+        imp.reload(export_nx3)
+        export_nx3.write(self.filepath,*options)
+        return {'FINISHED'}
 
 
 @register_class
 class ImportBTRF(bpy.types.Operator, ImportHelper):
-	bl_idname = "import_mesh.nx3"
-	bl_label = "Import NX3"
-	bl_options = {'PRESET'}
+    bl_idname = "import_mesh.nx3"
+    bl_label = "Import NX3"
+    bl_options = {'PRESET'}
+    
+    directory: StringProperty(
+        subtype='DIR_PATH',
+    )
 
-	filepath : StringProperty(
-			subtype='FILE_PATH',
-			)
+    files: CollectionProperty(
+        type=bpy.types.OperatorFileListElement,
+    )
 
-	filename_ext = ".nx3"
+    filename_ext = ".nx3"
 
 
-	def execute(self, context):
-		imp.reload(import_nx3)
-		import_nx3.read(self.filepath)
-		return {'FINISHED'}
+    def execute(self, context):
+        imp.reload(import_nx3)
+        for file in self.files:
+            filepath = path.join(self.directory, file.name)
+            import_nx3.read(filepath)
+        return {'FINISHED'}
 
 
 def menu_func_export(self, context):
-	self.layout.operator(ExportBTRF.bl_idname, text="Rappelz NX3 (.nx3)")
+    self.layout.operator(ExportBTRF.bl_idname, text="Rappelz NX3 (.nx3)")
 
 
 def menu_func_import(self, context):
-	self.layout.operator(ImportBTRF.bl_idname, text="Rappelz NX3 (.nx3)")
+    self.layout.operator(ImportBTRF.bl_idname, text="Rappelz NX3 (.nx3)")
 
 
 
@@ -298,6 +305,9 @@ class VIEW3D_PT_BlenderNx3Main(BlenderNx3Panel): # UI BY Peakz
             row0 = layout.row(align=False, heading='Visibility Value')
             row0.prop(context.active_object, "OBJVisi", text="")
             row0.scale_y = 1.5
+            row1 = layout.row(align=False)
+            row1.prop(context.active_object, "UseNewVertexOrder", text="Use New Vertex Order Export For This Object")
+            row1.scale_y = 1.5
             col = layout.column(align=True)
             col.separator()
             col.prop(context.active_object, "FxUse")
@@ -380,22 +390,22 @@ class VIEW3D_PT_BlenderNx3Main(BlenderNx3Panel): # UI BY Peakz
 
 
 def register():
-	for cls in classes:
-		#print(cls)
-		bpy.utils.register_class(cls)
+    for cls in classes:
+        #print(cls)
+        bpy.utils.register_class(cls)
 
-	bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
-	bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
-	
-	
-	bpy.types.Object.FxUse = BoolProperty(
+    bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
+    bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
+    
+    
+    bpy.types.Object.FxUse = BoolProperty(
         name="Use Fx",
         description="Use Fx For This Object",
         default=False,
         subtype="NONE",
     )
         
-	bpy.types.Object.OBJVisi = FloatProperty(
+    bpy.types.Object.OBJVisi = FloatProperty(
         name="Visibilty Value",
         description="The Visibilty Value of the Active Object",
         default=1,
@@ -406,11 +416,18 @@ def register():
         subtype="FACTOR",
     )
 
-	bpy.types.Object.Fx_list = CollectionProperty(type = FxListItem)
-	bpy.types.Object.Fxlist_index = IntProperty(name = "Index for Fx_list", default = 0)
+    bpy.types.Object.UseNewVertexOrder = BoolProperty(
+        name="Use New Vertex Order Export",
+        description="Use New Vertex Order Export For This Object (Try this if the mesh is broken on export)",
+        default=False,
+        subtype="NONE",
+    )
+
+    bpy.types.Object.Fx_list = CollectionProperty(type = FxListItem)
+    bpy.types.Object.Fxlist_index = IntProperty(name = "Index for Fx_list", default = 0)
 
     ###### Material ######
-	bpy.types.Material.MtlIllumi = FloatProperty(
+    bpy.types.Material.MtlIllumi = FloatProperty(
         name="Additive Value",
         description="The Additive Value of the Active Material",
         default=0,
@@ -426,23 +443,25 @@ def register():
 
 
 def unregister():
-	for cls in classes:
-		bpy.utils.unregister_class(cls)
-	
-	bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
-	bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
+    for cls in classes:
+        bpy.utils.unregister_class(cls)
     
-	ob = bpy.types.Object
-	del ob.OBJVisi
+    bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
+    bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
+    
+    ob = bpy.types.Object
 
-	##### FX List ####
-	del ob.FxUse
-	del ob.Fx_list
-	del ob.Fxlist_index
+    del ob.OBJVisi
+    del ob.UseNewVertexOrder
+
+    ##### FX List ####
+    del ob.FxUse
+    del ob.Fx_list
+    del ob.Fxlist_index
     ###### Material ######
-	mtl= bpy.types.Material
+    mtl= bpy.types.Material
 
-	del mtl.MtlIllumi
+    del mtl.MtlIllumi
 
 if __name__ == "__main__":
-	register()
+    register()
