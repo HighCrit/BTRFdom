@@ -639,8 +639,8 @@ def get_nx3_mesh_block(tmlFile, rootBlock, mesh_object, mesh_data, mesh_block_fa
 				if vertex_info in vertex_info_array:
 					index_array.append(vertex_info_array[vertex_info])
 				else:
-					#index = len(vertex_info_array)
-					index = vertex_info.vertex_index
+					index = len(vertex_info_array)
+					#index = vertex_info.vertex_index
 					vertex_info_array[vertex_info] = index
 					index_array.append(index)
 		print("2.72")			
