@@ -23,15 +23,16 @@ bl_info = {
     "name": "Rappelz NX3 format",
     "author": "Glandu2/Peakz",
     "blender": (3, 0, 0),
-    "version": (1, 6, 1),
+    "version": (1, 7, 0),
     "location": "File > Import-Export",
     "description": "Export to a Rappelz NX3 file",
     "category": "Import-Export"}
 
 import bpy
+import bpy.utils.previews
 from bpy_extras.io_utils import ExportHelper, ImportHelper
 from bpy.props import StringProperty, BoolProperty, IntProperty, FloatProperty, CollectionProperty
-from bpy.types import PropertyGroup, UIList, Operator, Panel
+from bpy.types import AddonPreferences, PropertyGroup, UIList, UILayout, Operator, Panel
 from . import export_nx3
 from . import import_nx3
 import imp
@@ -74,9 +75,15 @@ class ExportBTRF(bpy.types.Operator, ExportHelper):
         default=False,
     )
 
+    use_Batch: BoolProperty(
+        name="Export Batch",
+        description="Export Each Object As A separate",
+        default=False,
+    )
+
 
     def execute(self, context):
-        options =[self.use_collection, self.use_selection, self.use_Tanimation]
+        options =[self.use_collection, self.use_selection, self.use_Tanimation, self.use_Batch]
         imp.reload(export_nx3)
         export_nx3.write(self.filepath,*options)
         return {'FINISHED'}
@@ -108,11 +115,11 @@ class ImportBTRF(bpy.types.Operator, ImportHelper):
 
 
 def menu_func_export(self, context):
-    self.layout.operator(ExportBTRF.bl_idname, text="Rappelz NX3 (.nx3)")
+    self.layout.operator(ExportBTRF.bl_idname, text="Rappelz NX3 (.nx3)", icon_value=my_icon.icon_id)
 
 
 def menu_func_import(self, context):
-    self.layout.operator(ImportBTRF.bl_idname, text="Rappelz NX3 (.nx3)")
+    self.layout.operator(ImportBTRF.bl_idname, text="Rappelz NX3 (.nx3)", icon_value=my_icon.icon_id)
 
 
 
@@ -307,7 +314,10 @@ class VIEW3D_PT_BlenderNx3Main(BlenderNx3Panel): # UI BY Peakz
             row0.scale_y = 1.5
             row1 = layout.row(align=False)
             row1.prop(context.active_object, "UseNewVertexOrder", text="Use New Vertex Order Export For This Object")
-            row1.scale_y = 1.5
+            #row1.scale_y = 1.5
+            row11 = layout.row(align=False)
+            row11.prop(context.active_object, "OBJVertAni", text="Use Vertex Animation For This Object")
+            #row11.scale_y = 1.5
             col = layout.column(align=True)
             col.separator()
             col.prop(context.active_object, "FxUse")
@@ -369,34 +379,44 @@ class VIEW3D_PT_BlenderNx3Main(BlenderNx3Panel): # UI BY Peakz
                         col2.prop(item, "FxString")
                     col.separator()
 
-                # col.prop(context.active_object, "FxUseFrameString")
-                # if context.active_object.FxUseFrameString:
+@register_class                
+class NX3Preferences(AddonPreferences): 
+    bl_idname = __package__
 
-                #     row2 = layout.row()
-                #     row2.template_list("FX_UL_List", "FX_UL_List", context.active_object,"Fx_list", context.active_object, "Fxlist_index")
-                #     col2 = row2.column(align=True)
-                #     col2.operator("fx_list.add_frame", icon='ADD', text="")
-                #     col2.operator("fx_list.delete_frame", icon='REMOVE', text="")
-                #     if context.active_object.Fxlist_index >= 0 and context.active_object.Fx_list:
-                #         item = context.active_object.Fx_list[context.active_object.Fxlist_index]
-                #         row3 = layout.row()
-                #         col3 = row3.column(align=True)
-                #         col3.prop(item, "frame")
-                #         col3.prop(item, "FxFrameString")
-                    
-                    #col3.prop(context.active_object.Fx_list, "FxFrameString")
-                
+    Dumppath: StringProperty(
+        name="Dump Path",
+        description="Path To Search For Missing Textures",
+        subtype='FILE_PATH',
+        default=""
+    )
 
+    def draw(self, context: bpy.types.Context):
+        layout: UILayout = self.layout
+        layout.prop(self, "Dumppath")
+        fp = context.preferences.addons[__package__].preferences.get("Dumppath")
+        if fp is not None and fp != "" and not path.exists(fp):
+            layout.label(text="Path doesn't exist", icon='ERROR')
 
+preview_collections = {}
 
 def register():
     for cls in classes:
         #print(cls)
         bpy.utils.register_class(cls)
 
+    # icons #
+    
+    global my_icon
+    pcoll = bpy.utils.previews.new() 
+    my_icons_dir = path.join(path.dirname(__file__), "icons")
+    pcoll.load("my_icon", path.join(my_icons_dir, "nx3.png"), 'IMAGE')
+    my_icon = pcoll["my_icon"]
+    preview_collections["main"] = pcoll
+    #########
+
     bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
     bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
-    
+
     
     bpy.types.Object.FxUse = BoolProperty(
         name="Use Fx",
@@ -414,6 +434,13 @@ def register():
         step=0.01,
         precision=2,
         subtype="FACTOR",
+    )
+
+    bpy.types.Object.OBJVertAni = BoolProperty(
+        name="Use Vertex Animation",
+        description="Use Vertex Animation For This Object",
+        default=False,
+        subtype="NONE",
     )
 
     bpy.types.Object.UseNewVertexOrder = BoolProperty(
@@ -445,13 +472,20 @@ def register():
 def unregister():
     for cls in classes:
         bpy.utils.unregister_class(cls)
-    
+
+    # icons #
+    for pcoll in preview_collections.values():
+        bpy.utils.previews.remove(pcoll)
+    preview_collections.clear()
+    ########
+
     bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
     
     ob = bpy.types.Object
 
     del ob.OBJVisi
+    del ob.OBJVertAni
     del ob.UseNewVertexOrder
 
     ##### FX List ####

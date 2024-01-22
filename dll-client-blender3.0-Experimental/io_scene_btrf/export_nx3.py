@@ -1,4 +1,4 @@
-#
+	#
 # BTRFdom - Rappelz BTRF Document Object Model
 # By Glandu2/Ldxngx/Peakz
 # Copyright 2013 Glandu2
@@ -300,6 +300,8 @@ def get_visi_time_value_array(mesh_object):
 
 			# value array
 			value_array.append(keyframe.co[1])
+	elif mesh_object.OBJVertAni:
+		pass
 	else:
 		# time array
 		time_array.append(0)
@@ -458,28 +460,32 @@ def get_materials_bones_from_object(blender_object, materials_info, bones_info):
 				raise "Bones names must be unique trough the whole file. Several bones have the name %s" % bone.name
 
 
-def get_materials_bones(Options):
+def get_materials_bones(Options, batch_obj):
 	materials_info = {}
 	bones_info = []
 
 	EXPORT_COL_ONLY = Options[0]
 	EXPORT_SEL_ONLY = Options[1]
 
-	
-	if EXPORT_COL_ONLY:
-		if EXPORT_SEL_ONLY:
-			for obj in (obj for obj in bpy.context.collection.objects if obj.select_get()): # peakz
-				get_materials_bones_from_object(obj, materials_info, bones_info)
+	EXPORT_BATCH    = Options[3]
+
+	if not EXPORT_BATCH:
+		if EXPORT_COL_ONLY:
+			if EXPORT_SEL_ONLY:
+				for obj in (obj for obj in bpy.context.collection.objects if obj.select_get()): # peakz
+					get_materials_bones_from_object(obj, materials_info, bones_info)
+			else:
+				for obj in bpy.context.collection.objects: # peakz
+					get_materials_bones_from_object(obj, materials_info, bones_info)
 		else:
-			for obj in bpy.context.collection.objects: # peakz
-				get_materials_bones_from_object(obj, materials_info, bones_info)
+			if EXPORT_SEL_ONLY:	
+				for obj in (obj for obj in bpy.data.objects if obj.select_get()):
+					get_materials_bones_from_object(obj, materials_info, bones_info)
+			else:
+				for obj in bpy.data.objects:
+					get_materials_bones_from_object(obj, materials_info, bones_info)
 	else:
-		if EXPORT_SEL_ONLY:	
-			for obj in (obj for obj in bpy.data.objects if obj.select_get()):
-				get_materials_bones_from_object(obj, materials_info, bones_info)
-		else:
-			for obj in bpy.data.objects:
-				get_materials_bones_from_object(obj, materials_info, bones_info)
+		get_materials_bones_from_object(batch_obj, materials_info, bones_info)
 
 	return [materials_info, bones_info]
 
@@ -559,6 +565,7 @@ def get_mtl_block(tmlFile, rootBlock, material_info):
 
 	material_info.material.use_nodes = True
 	master = material_info.material.node_tree.nodes["Principled BSDF"]
+	#master = material_info.material.node_tree.nodes[-1]
 	self_illumi = float("{:.2f}".format(material_info.material.MtlIllumi))
 	smoothing = 0
 	ambient = 0
@@ -714,14 +721,14 @@ def index_of_vertex_info(vertex_info_array, vertex_info):
 	return -1
 
 
-def get_nx3_mesh_frame(tmlFile, rootBlock, mesh_matrix, vertex_info_array, vertex_groups, has_texel):
+def get_nx3_mesh_frame(tmlFile, rootBlock, mesh_matrix, vertex_info_array, vertex_groups, has_texel, VertAniTime):
 	#Create a block that will contain the data of the template
 	fieldInfo = tmlFile.getTemplateByGuid(nx3_mesh_frame_guid.bytes_le)
 
 	block = BtrfBlock()
 	block.create(fieldInfo, rootBlock)
 
-	time_value = 0
+	time_value = VertAniTime
 	ordered_vertex_info = sorted(vertex_info_array, key=vertex_info_array.__getitem__)
 	
 	vertex_array = [coord for vertex_info in ordered_vertex_info for coord in vertex_info.vertex]
@@ -810,42 +817,77 @@ def get_nx3_mesh_block(tmlFile, rootBlock, mesh_object, mesh_data, mesh_block_fa
 		texture_index = 0
 
 	vertex_groups = mesh_object.vertex_groups
-	vertex_info_array = {}
-	index_array = []
+	if mesh_object.OBJVertAni:
+		vertex_groups = []
+
+	#vertex_info_array = {}
+	#index_array = []
 
 	#mesh_data.flip_normals()
+
+	AniMeshs = []
+	mesh_frames = []
+	VertAniTime = 0
+	scene = bpy.data.scenes['Scene']
+
+	if mesh_object.OBJVertAni:
+		print('Using Vert Ani')
+		for frame in range(scene.frame_start, scene.frame_end + 1):
+			scene.frame_set(frame, subframe=0.0)
+			print('frame is :', frame)
+
+			cleaned_copy = mesh_object.copy()
+			cleaned_copy.data = mesh_object.data.copy()
+			cleaned_copy.animation_data_clear()
+			bpy.context.collection.objects.link(cleaned_copy)
+
+			depsgraph = bpy.context.evaluated_depsgraph_get()
+			object_eval = mesh_object.evaluated_get(depsgraph) 
+			mesh = bpy.data.meshes.new_from_object(object_eval)
+
+			cleaned_copy.data = mesh
+			cleaned_copy.modifiers.clear()
+
+			AniMeshs.append(cleaned_copy)
+	else:
+		AniMeshs.append(mesh_object)
 	
-	for face in mesh_block_faces:
-		
-		for vertex_index, loops_idx in reversed(list(zip(face.vertices, face.loop_indices))):    # reversed instead of enumerate else normals are wrong
-		#for vertex_index, loops_idx in list(zip(face.vertices, face.loop_indices)):    # reversed instead of enumerate else normals are wrong
-			#print(vertex_index, end=" ;  ")
-			if has_texture:
-				uv_texture = mesh_data.uv_layers[0] #mesh_data.uv_layers[0] 
 
-				#bm = bmesh.from_edit_mesh(mesh_data)
-				#uv_layer = bm.loops.layers.uv
+	for mesh in AniMeshs:
+		index_array = []
+		vertex_info_array = {}
+		for face in mesh_block_faces:
+			for vertex_index, loops_idx in reversed(list(zip(face.vertices, face.loop_indices))):    # reversed instead of enumerate else normals are wrong
+				#print(vertex_index, end=" ;  ")
+				if has_texture:
+					uv_texture = mesh.data.uv_layers[0] #mesh_data.uv_layers[0] 
 
-				vertex_info = VertexInfo(vertex_index, mesh_data.vertices[vertex_index].co, mesh_data.vertices[vertex_index].normal, uv_texture.data[loops_idx].uv) #uv_texture.data[face.index].uv)
-			else:
-				vertex_info = VertexInfo(vertex_index, mesh_data.vertices[vertex_index].co, mesh_data.vertices[vertex_index].normal)
+					#bm = bmesh.from_edit_mesh(mesh_data)
+					#uv_layer = bm.loops.layers.uv
 
-			#index = index_of_vertex_info(vertex_info_array, vertex_info)
-			if vertex_info in vertex_info_array:
-				index_array.append(vertex_info_array[vertex_info])
-			else:
-				if mesh_object.UseNewVertexOrder:
-					index = vertex_info.vertex_index
-					#print("New Vertex Order")
+					vertex_info = VertexInfo(vertex_index, mesh.data.vertices[vertex_index].co, mesh.data.vertices[vertex_index].normal, uv_texture.data[loops_idx].uv) #uv_texture.data[face.index].uv)
 				else:
-					index = len(vertex_info_array)
-				
-				vertex_info_array[vertex_info] = index
-				index_array.append(index)
-			j -= 1
-	#print(vertex_info_array)
-	mesh_frame = get_nx3_mesh_frame(tmlFile, rootBlock, mesh_object.matrix_world, vertex_info_array, vertex_groups, has_texture)
+					vertex_info = VertexInfo(vertex_index, mesh.data.vertices[vertex_index].co, mesh.data.vertices[vertex_index].normal)
 
+				#index = index_of_vertex_info(vertex_info_array, vertex_info)
+				if vertex_info in vertex_info_array:
+					index_array.append(vertex_info_array[vertex_info])
+				else:
+					if mesh_object.UseNewVertexOrder:
+						index = vertex_info.vertex_index
+						#print("New Vertex Order")
+					else:
+						index = len(vertex_info_array)
+					
+					vertex_info_array[vertex_info] = index
+					index_array.append(index)
+				j -= 1
+		#print(vertex_info_array)
+	
+
+		mesh_frames.append(get_nx3_mesh_frame(tmlFile, rootBlock, mesh.matrix_world, vertex_info_array, vertex_groups, has_texture, VertAniTime))
+
+		VertAniTime += 160
 
 	#mesh_data.flip_normals()
 	#dword  texture_index
@@ -856,8 +898,18 @@ def get_nx3_mesh_block(tmlFile, rootBlock, mesh_object, mesh_data, mesh_block_fa
 
 	#nx3_mesh_frame  mesh_frame_array[]
 	subBlock.create(fieldInfo.getField(1), rootBlock)
-	subBlock.addBlock(mesh_frame)
+	for mesh_frame in mesh_frames:
+		subBlock.addBlock(mesh_frame)
 	block.addBlock(subBlock)
+
+	if mesh_object.OBJVertAni:
+		for object in AniMeshs:
+			bpy.data.objects.remove(object)
+
+	for mesh in bpy.data.meshes:
+		if mesh.users == 0:
+			bpy.data.meshes.remove(mesh)
+
 
 	#word  index_buffer_array[]
 	subBlock.create(fieldInfo.getField(2), rootBlock)
@@ -870,6 +922,7 @@ def get_nx3_mesh_block(tmlFile, rootBlock, mesh_object, mesh_data, mesh_block_fa
 
 
 def get_nx3_new_mesh(tmlFile, rootBlock, mesh_object, materials_info , Option):
+	
 	#Create a block that will contain the data of the template
 	fieldInfo = tmlFile.getTemplateByGuid(nx3_new_mesh_guid.bytes_le)
 	block = BtrfBlock()
@@ -917,7 +970,7 @@ def get_nx3_new_mesh(tmlFile, rootBlock, mesh_object, materials_info , Option):
 
 	# # # # # # # # # # # # peakz animation # # # # # # # # # # # #
 	try:
-		if mesh_object.FxUse and (mesh_object.animation_data.action is None or not Option):
+		if (mesh_object.FxUse and (mesh_object.animation_data.action is None or not Option)) or mesh_object.OBJVertAni:
 			#print('fx transform ani')
 			transform_ani = ani_time_matrix_array(mesh_object, True)
 
@@ -1058,7 +1111,8 @@ def get_nx3_bone_tm(tmlFile, rootBlock, bone_info):
 	return block
 
 
-def write_nx3_new_mesh_header(tmlFile, rootBlock, bones_info, materials_info, Options):
+def write_nx3_new_mesh_header(tmlFile, rootBlock, bones_info, materials_info, Options, batch_obj):
+	
 	#Create a block that will contain the data of the template
 	fieldInfo = tmlFile.getTemplateByGuid(nx3_new_mesh_header_guid.bytes_le)
 	block = BtrfBlock()
@@ -1067,17 +1121,21 @@ def write_nx3_new_mesh_header(tmlFile, rootBlock, bones_info, materials_info, Op
 	EXPORT_COL_ONLY = Options[0]
 	EXPORT_SEL_ONLY = Options[1]
 	EXPORT_TANI     = Options[2]
+	EXPORT_BATCH    = Options[3]
 
-	if EXPORT_COL_ONLY:
-		if EXPORT_SEL_ONLY:
-			objects = [obj for obj in bpy.context.collection.objects if obj.type == 'MESH' and get_parent_mesh(obj) is None and obj.select_get()] #peakz
+	if not EXPORT_BATCH:
+		if EXPORT_COL_ONLY:
+			if EXPORT_SEL_ONLY:
+				objects = [obj for obj in bpy.context.collection.objects if obj.type == 'MESH' and get_parent_mesh(obj) is None and obj.select_get()] #peakz
+			else:
+				objects = [obj for obj in bpy.context.collection.objects if obj.type == 'MESH' and get_parent_mesh(obj) is None] #peakz
 		else:
-			objects = [obj for obj in bpy.context.collection.objects if obj.type == 'MESH' and get_parent_mesh(obj) is None] #peakz
+			if EXPORT_SEL_ONLY:
+				objects = [obj for obj in bpy.data.objects if obj.type == 'MESH' and get_parent_mesh(obj) is None and obj.select_get()]
+			else:
+				objects = [obj for obj in bpy.data.objects if obj.type == 'MESH' and get_parent_mesh(obj) is None]
 	else:
-		if EXPORT_SEL_ONLY:
-			objects = [obj for obj in bpy.data.objects if obj.type == 'MESH' and get_parent_mesh(obj) is None and obj.select_get()]
-		else:
-			objects = [obj for obj in bpy.data.objects if obj.type == 'MESH' and get_parent_mesh(obj) is None]
+		objects = [batch_obj]
 
 	mesh_array = [get_nx3_new_mesh(tmlFile, rootBlock, mesh_object, materials_info,  Options[2]) for mesh_object in objects]
 	bone_tm_array = [get_nx3_bone_tm(tmlFile, rootBlock, bone_info) for bone_info in bones_info]
@@ -1099,15 +1157,43 @@ def write_nx3_new_mesh_header(tmlFile, rootBlock, bones_info, materials_info, Op
 
 
 def write(filename,*Options):
-	(tmlFile, rootBlock) = load_btrfdom()
+	if not Options[3]:
+		(tmlFile, rootBlock) = load_btrfdom()
+		(materials_info, bones_info) = get_materials_bones(Options, None)
+		write_version(tmlFile, rootBlock)
+		write_mtl_header(tmlFile, rootBlock, materials_info)
+		write_nx3_new_mesh_header(tmlFile, rootBlock, bones_info, materials_info, Options, None)
+		info("Writing file %s" % filename)
+		writer = BtrfParser()
+		writer.create(tmlFile)
+		writer.writeFile(filename, rootBlock)
+	else:
+		EXPORT_COL_ONLY = Options[0]
+		EXPORT_SEL_ONLY = Options[1]
 
-	(materials_info, bones_info) = get_materials_bones(Options)
+		if EXPORT_COL_ONLY:
+			if EXPORT_SEL_ONLY:
+				objects = [obj for obj in bpy.context.collection.objects if (obj.select_get() )]# and obj.type == 'MESH')]
+			else:
+				objects = [obj for obj in bpy.context.collection.objects ]#if obj.type == 'MESH'] 
+		else:
+			if EXPORT_SEL_ONLY:	
+				objects = [obj for obj in bpy.data.objects if (obj.select_get() )]#and obj.type == 'MESH')]
+			else:
+				objects = [obj for obj in bpy.data.scenes['Scene'].objects ]#if obj.type == 'MESH']
 
-	write_version(tmlFile, rootBlock)
-	write_mtl_header(tmlFile, rootBlock, materials_info)
-	write_nx3_new_mesh_header(tmlFile, rootBlock, bones_info, materials_info, Options)
 
-	info("Writing file %s" % filename)
-	writer = BtrfParser()
-	writer.create(tmlFile)
-	writer.writeFile(filename, rootBlock)
+
+		for obj in objects:
+			file_name = filename.replace('.nx3',f'{obj.name}.nx3')
+			(tmlFile, rootBlock) = load_btrfdom()
+			(materials_info, bones_info) = get_materials_bones(Options, obj)
+			write_version(tmlFile, rootBlock)
+			write_mtl_header(tmlFile, rootBlock, materials_info)
+			write_nx3_new_mesh_header(tmlFile, rootBlock, bones_info, materials_info, Options, obj)
+			info("Writing file %s" % file_name)
+			writer = BtrfParser()
+			writer.create(tmlFile)
+			writer.writeFile(file_name, rootBlock)
+
+	

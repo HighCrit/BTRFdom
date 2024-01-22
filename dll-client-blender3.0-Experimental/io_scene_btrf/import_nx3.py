@@ -164,10 +164,18 @@ def info(str):
 def warn(str):
 	print(('btrfdom: Warning: ' + str))
 
+class ERROR(Exception):
+	pass
 
-def error(str):
+def ErrorDIFK(str):
 	print(('btrfdom: Error: ' + str))
-	raise(str)
+	raise ERROR(str)
+
+
+def ErrorUnknown(str):
+	print(('btrfdom: Error: ' + str))
+	raise ERROR(str)
+
 
 
 def create_anim_fcurve(action, data_path, index, count):
@@ -202,6 +210,15 @@ def read_fx_block(fx_array_block_template):
 
 ########################### fx ############################################
 
+def set_linear_interpolation(obj, shapekey):
+				anim_data = obj.data.shape_keys.animation_data
+				data_path = "key_blocks[\"" + shapekey.name + "\"].value"
+
+				for fcu in anim_data.action.fcurves:
+					if fcu.data_path == data_path:
+						for keyframe in fcu.keyframe_points:
+							keyframe.interpolation = 'LINEAR'
+
 def read_materials(rootBlock, file_dir):
 	nx3_mtl_header_block = rootBlock.getBlockByGuid(nx3_mtl_header_guid.bytes_le)
 	mtl_template_array = nx3_mtl_header_block.getBlock(0)
@@ -234,6 +251,34 @@ def read_materials(rootBlock, file_dir):
 				texture_file = file_dir + '/' + os.path.splitext(texture_name)[0] + ".tga"
 			if not os.path.exists(texture_file):
 				texture_file = file_dir + '/' + os.path.splitext(texture_name)[0] + ".png"
+			if not os.path.exists(texture_file):
+				texture_file = file_dir + '/' + os.path.splitext(texture_name)[0] + ".bmp"
+
+			if not os.path.exists(texture_file):
+				dump_path = bpy.context.preferences.addons[__package__].preferences.get("Dumppath")
+				if os.path.exists(dump_path):
+					texture_file = dump_path + '/' + os.path.splitext(texture_name)[1].replace('.','') + '/' + texture_name
+					if not os.path.exists(texture_file):
+						texture_file = dump_path + '/' + 'dds' + '/' + os.path.splitext(texture_name)[0] + ".dds"
+					if not os.path.exists(texture_file):
+						texture_file = dump_path + '/' + 'tga' + '/' + os.path.splitext(texture_name)[0] + ".tga"
+					if not os.path.exists(texture_file):
+						texture_file = dump_path + '/' + 'png' + '/' + os.path.splitext(texture_name)[0] + ".png"
+					if not os.path.exists(texture_file):
+						texture_file = dump_path + '/' + 'bmp' + '/' + os.path.splitext(texture_name)[0] + ".bmp"
+
+					if not os.path.exists(texture_file):
+						texture_file = dump_path + '/' + texture_name
+					if not os.path.exists(texture_file):
+						texture_file = dump_path + '/' + os.path.splitext(texture_name)[0] + ".dds"
+					if not os.path.exists(texture_file):
+						texture_file = dump_path + '/' + os.path.splitext(texture_name)[0] + ".tga"
+					if not os.path.exists(texture_file):
+						texture_file = dump_path + '/' + os.path.splitext(texture_name)[0] + ".png"
+					if not os.path.exists(texture_file):
+						texture_file = dump_path + '/' + os.path.splitext(texture_name)[0] + ".bmp"
+
+
 
 			texture_name = os.path.basename(texture_file)
 
@@ -290,8 +335,8 @@ def read_mesh_block(mesh_block_template, mesh_object, bm, mtl_textures):
 		print("Empty mesh block, ignoring")
 		return
 
-	if mesh_block_template.getBlock(1).getElementNumber() > 1:
-		print("Mesh block has multiple mesh frame, this is not supported, using first frame")
+	#if mesh_block_template.getBlock(1).getElementNumber() > 1:
+	#	print("Mesh block has multiple mesh frame, this is not supported, using first frame")
 
 	mesh_data = mesh_block_template.getBlock(1).getBlock(0)
 	#time_value = mesh_data.getBlock(0).getDataInt(0)
@@ -383,6 +428,27 @@ def read_mesh_block(mesh_block_template, mesh_object, bm, mtl_textures):
 	# object.data.vertices.foreach_set("normal", normal_data)
 	# for uv1, uv2, uv3 in zip(*[iter(vars)]*2):
 
+	# vertex animation 
+
+	global vertex_ani_coords
+	#global vertex_ani_time
+	vertex_ani_coords = []
+	#vertex_ani_time = []
+	mesh_frame_count = mesh_block_template.getBlock(1).getElementNumber() 
+	if mesh_frame_count > 1:
+		mesh_object.OBJVertAni = True
+		for mesh_frame_index in range(1, mesh_frame_count):
+			mesh_data = mesh_block_template.getBlock(1).getBlock(mesh_frame_index)
+			time_value = mesh_data.getBlock(0).getDataInt(0)
+			vertex_array = [mesh_data.getBlock(1).getDataFloat(i) for i in range(mesh_data.getBlock(1).getElementNumber())]
+			#print(vertex_array)
+			vertex_data = [(vertex_array[int(i * 3)], vertex_array[int(i * 3 + 1)], vertex_array[int(i * 3 + 2)]) for i in range(int(mesh_data.getBlock(1).getElementNumber() / 3))]
+			#print(vertex_data)
+			vertex_ani_coords.append(vertex_data)
+			#vertex_ani_time.append(time_value)
+		
+	
+
 	return read_bones_weight(bone_block_template_array, vertices)
 
 
@@ -468,11 +534,57 @@ def read_mesh(mesh_template, materials, armature):
 
 	mesh_blocks = [mesh_block_array.getBlock(i) for i in range(mesh_block_array.getElementNumber())]
 	for i, mesh_block in enumerate(mesh_blocks):
+
 		bones_weight.append(read_mesh_block(mesh_block, mesh_object, bm, mtl_textures))
 
 	bm.to_mesh(mesh)
 	bm.free()
 	del bm
+	
+	##################################### vertex animation #####################################
+	# Basis shape key
+	obj = mesh_object
+	basis = obj.shape_key_add()
+	basis.name = "Basis"
+	obj.data.update()
+	for mesh_frame_index , vertex_data in enumerate(vertex_ani_coords):
+		# Insert new shape key
+		new_shapekey = obj.shape_key_add(name=f"{mesh_object.name}_{mesh_frame_index}")
+		new_shapekey_index = len(obj.data.shape_keys.key_blocks) - 1
+
+		obj.active_shape_key_index = new_shapekey_index
+		obj.show_only_shape_key = True
+
+		obj.data.update()
+
+		verts = new_shapekey.data
+
+		for i, v in enumerate(verts):
+			v.co = vertex_data[i]
+
+		obj.show_only_shape_key = False
+
+		# insert keyframes
+		new_shapekey = obj.data.shape_keys.key_blocks[new_shapekey_index]
+		frame = mesh_frame_index + 1
+
+		new_shapekey.value = 0.0
+		new_shapekey.keyframe_insert("value", frame=frame - 1)
+
+		new_shapekey.value = 1.0
+		new_shapekey.keyframe_insert("value", frame=frame)
+
+		new_shapekey.value = 0.0
+		new_shapekey.keyframe_insert("value", frame=frame + 1)
+
+		set_linear_interpolation(obj, new_shapekey)
+		
+
+		obj.data.update()
+	#print(len(vertex_ani_coords),bpy.context.scene.frame_end)
+	bpy.context.scene.frame_end = len(vertex_ani_coords)
+	##################################### vertex animation #####################################
+
 
 	# bones weights handling
 
@@ -541,7 +653,7 @@ def read_mesh(mesh_template, materials, armature):
 			scale_keyframes[1][i].co = frame_id, rot_matrix.to_scale()[1]
 			scale_keyframes[2][i].co = frame_id, rot_matrix.to_scale()[2]
 
-		bpy.context.scene.frame_end = time_to_frame(ani_time_array[len(ani_time_array) - 1])
+		bpy.context.scene.frame_end = max(bpy.context.scene.frame_end, time_to_frame(ani_time_array[len(ani_time_array) - 1]))
 		bpy.context.scene.frame_start = 0
 		
 	# visibility handling (object transparency)
@@ -649,15 +761,21 @@ def read_nx3_file(parser, nx3_filename):
 	rootBlock = parser.readFile(nx3_filename)
 
 	if rootBlock is None:
-		error("Could not read nx3 file")
+		with open(nx3_filename, 'rb') as file:
+			if file.read(4) == b'DIFK':
+				ErrorDIFK("DIFK Type Is Not Supported")
+			else:
+				ErrorUnknown("Could not read nx3 file")
 		return
 
 	#check_version(rootBlock)
+	bpy.context.scene.frame_end = 0
 	materials = read_materials(rootBlock, os.path.dirname(nx3_filename))
 	return read_mesh_header(rootBlock, materials, os.path.basename(nx3_filename))
 
 
 def read(nx3_filename):
+
 	script_dir = os.path.dirname(os.path.abspath(__file__))
 
 	tmlFile = TmlFile()
