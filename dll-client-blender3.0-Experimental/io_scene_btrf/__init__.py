@@ -23,7 +23,7 @@ bl_info = {
     "name": "Rappelz NX3 format",
     "author": "Glandu2/Peakz",
     "blender": (3, 0, 0),
-    "version": (1, 7, 0),
+    "version": (1, 7, 1),
     "location": "File > Import-Export",
     "description": "Export to a Rappelz NX3 file",
     "category": "Import-Export"}
@@ -32,7 +32,7 @@ import bpy
 import bpy.utils.previews
 from bpy_extras.io_utils import ExportHelper, ImportHelper
 from bpy.props import StringProperty, BoolProperty, IntProperty, FloatProperty, CollectionProperty
-from bpy.types import AddonPreferences, PropertyGroup, UIList, UILayout, Operator, Panel
+from bpy.types import AddonPreferences, PropertyGroup, UIList, UILayout, Operator, Panel, Menu
 from . import export_nx3
 from . import import_nx3
 import imp
@@ -379,6 +379,7 @@ class VIEW3D_PT_BlenderNx3Main(BlenderNx3Panel): # UI BY Peakz
                         col2.prop(item, "FxString")
                     col.separator()
 
+# icons #
 @register_class                
 class NX3Preferences(AddonPreferences): 
     bl_idname = __package__
@@ -398,14 +399,30 @@ class NX3Preferences(AddonPreferences):
             layout.label(text="Path doesn't exist", icon='ERROR')
 
 preview_collections = {}
+########
 
+# pie menu #
+@register_class
+class VIEW3D_MT_PIE_NX3(Menu):
+    bl_label = "NX3 PIE MENU"
+
+    def draw(self, context):
+        layout = self.layout
+
+        pie = layout.menu_pie()
+        pie.operator(ImportBTRF.bl_idname, text="Import", icon_value=my_icon.icon_id)
+        pie.operator(ExportBTRF.bl_idname, text="Export", icon_value=my_icon.icon_id)
+############
+
+# keymaps #
+global_nx3_keymaps = []
+###########
 def register():
     for cls in classes:
         #print(cls)
         bpy.utils.register_class(cls)
 
     # icons #
-    
     global my_icon
     pcoll = bpy.utils.previews.new() 
     my_icons_dir = path.join(path.dirname(__file__), "icons")
@@ -413,6 +430,19 @@ def register():
     my_icon = pcoll["my_icon"]
     preview_collections["main"] = pcoll
     #########
+
+    # keymaps #
+    window_manager = bpy.context.window_manager
+    if window_manager.keyconfigs.addon:
+        keymap = window_manager.keyconfigs.addon.keymaps.new(name='3D View', space_type='VIEW_3D')
+        
+        keymap_item = keymap.keymap_items.new('wm.call_menu_pie', 'A', "PRESS", shift=True, alt=True)
+        keymap_item.properties.name = "VIEW3D_MT_PIE_NX3"
+
+        global_nx3_keymaps.append((keymap, keymap_item))
+    ###########
+
+
 
     bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
     bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
@@ -478,6 +508,16 @@ def unregister():
         bpy.utils.previews.remove(pcoll)
     preview_collections.clear()
     ########
+
+    # keymaps #
+    window_manager = bpy.context.window_manager
+    if window_manager and window_manager.keyconfigs and window_manager.keyconfigs.addon:
+        
+        for keymap, keymap_item in global_nx3_keymaps:
+            keymap.keymap_items.remove(keymap_item)
+
+    global_nx3_keymaps.clear()
+    ###########
 
     bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
