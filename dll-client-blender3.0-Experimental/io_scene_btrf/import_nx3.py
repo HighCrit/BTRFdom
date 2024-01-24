@@ -256,7 +256,7 @@ def read_materials(rootBlock, file_dir):
 
 			if not os.path.exists(texture_file):
 				dump_path = bpy.context.preferences.addons[__package__].preferences.get("Dumppath")
-				if os.path.exists(dump_path):
+				if dump_path != None and os.path.exists(dump_path):
 					texture_file = dump_path + '/' + os.path.splitext(texture_name)[1].replace('.','') + '/' + texture_name
 					if not os.path.exists(texture_file):
 						texture_file = dump_path + '/' + 'dds' + '/' + os.path.splitext(texture_name)[0] + ".dds"
