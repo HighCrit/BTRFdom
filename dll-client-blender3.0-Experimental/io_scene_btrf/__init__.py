@@ -48,7 +48,7 @@ def register_class(cls):
 class ExportBTRF(bpy.types.Operator, ExportHelper):
     bl_idname = "export_mesh.nx3"
     bl_label = "Export NX3"
-    bl_options = {'PRESET'}
+    bl_options = {'UNDO', 'PRESET'}
 
     filepath : StringProperty(
             subtype='FILE_PATH',
@@ -59,27 +59,44 @@ class ExportBTRF(bpy.types.Operator, ExportHelper):
     #peakz
     use_collection: BoolProperty(
         name="Active Collection Only",
-        description="Export Active Collection's objects only",
+        description="Export active Collection's objects only",
         default=False,
     )
 
     use_selection: BoolProperty(
         name="Selection Only",
-        description="Export Selected objects only",
+        description="Export selected objects only",
         default=False,
     )
 
     use_Tanimation: BoolProperty(
         name="Export Transform Animation",
-        description="Export Transform Animation (Location, Rotation, Scale)",
+        description="Export transform animation (Location, Rotation, Scale)",
         default=False,
     )
 
     use_Batch: BoolProperty(
         name="Export Batch",
-        description="Export Each Object As A separate",
+        description="Export each object as a separate nx3 file",
         default=False,
     )
+
+    def draw(self, context):
+        layout = self.layout
+
+        box = layout.box()
+        box.label(text="Limit Export To :", icon="OBJECT_DATA")
+        box.prop(self, 'use_collection')
+        box.prop(self, 'use_selection')
+
+        box = layout.box()
+        box.label(text="Animation :", icon="ANIM")
+        box.prop(self, 'use_Tanimation')
+
+        box = layout.box()
+        box.label(text="Batch :", icon="EXPORT")
+        box.prop(self, 'use_Batch')
+
 
 
     def execute(self, context):
@@ -93,7 +110,7 @@ class ExportBTRF(bpy.types.Operator, ExportHelper):
 class ImportBTRF(bpy.types.Operator, ImportHelper):
     bl_idname = "import_mesh.nx3"
     bl_label = "Import NX3"
-    bl_options = {'PRESET'}
+    bl_options = {'UNDO', 'PRESET'}
     
     directory: StringProperty(
         subtype='DIR_PATH',
