@@ -23,9 +23,9 @@ bl_info = {
     "name": "Rappelz NX3 format",
     "author": "Glandu2/Peakz",
     "blender": (3, 0, 0),
-    "version": (1, 7, 1),
+    "version": (1, 7, 2),
     "location": "File > Import-Export",
-    "description": "Export to a Rappelz NX3 file",
+    "description": "Import and Export a Rappelz NX3 file",
     "category": "Import-Export"}
 
 import bpy
@@ -132,11 +132,11 @@ class ImportBTRF(bpy.types.Operator, ImportHelper):
 
 
 def menu_func_export(self, context):
-    self.layout.operator(ExportBTRF.bl_idname, text="Rappelz NX3 (.nx3)", icon_value=my_icon.icon_id)
+    self.layout.operator(ExportBTRF.bl_idname, text="Rappelz NX3 (.nx3)", icon_value=nx3_icon.icon_id)
 
 
 def menu_func_import(self, context):
-    self.layout.operator(ImportBTRF.bl_idname, text="Rappelz NX3 (.nx3)", icon_value=my_icon.icon_id)
+    self.layout.operator(ImportBTRF.bl_idname, text="Rappelz NX3 (.nx3)", icon_value=nx3_icon.icon_id)
 
 
 
@@ -319,31 +319,46 @@ class VIEW3D_PT_BlenderNx3Main(BlenderNx3Panel): # UI BY Peakz
         if context.active_object.type == 'MESH':
               
             layout = self.layout
-            row = layout.row(align=False, heading='Additive Value')
-            row.scale_y = 1.5
+
+            # Material Options 
             if context.active_object.active_material:
+                box0 = layout.box()
+                box0.label(text="Material Options :", icon="MATERIAL_DATA")
+                row = box0.row(align=False, heading='Additive Value')
+                #row.scale_y = 1.5
                 row.prop(context.active_object.active_material, "MtlIllumi", text="")
-            else:
-                row.label(text="The Active Object Has No Material")
-            
-            row0 = layout.row(align=False, heading='Visibility Value')
+
+            # Visibilty Options
+            box1 = layout.box()
+            box1.label(text="Visibility Options :", icon="HIDE_OFF")
+            row0 = box1.row(align=False, heading='Visibility Value')
             row0.prop(context.active_object, "OBJVisi", text="")
-            row0.scale_y = 1.5
-            row1 = layout.row(align=False)
+            #row0.scale_y = 1.5
+
+            # New Vertex Order Export Options
+            box2 = layout.box()
+            row1 = box2.row(align=False)
             row1.prop(context.active_object, "UseNewVertexOrder", text="Use New Vertex Order Export For This Object")
             #row1.scale_y = 1.5
-            row11 = layout.row(align=False)
-            row11.prop(context.active_object, "OBJVertAni", text="Use Vertex Animation For This Object")
-            #row11.scale_y = 1.5
-            col = layout.column(align=True)
-            col.separator()
+
+            # Animation Options
+            box3 = layout.box()
+            box3.label(text="Animation Options :", icon="ANIM")
+            row2 = box3.row(align=False)
+            row2.prop(context.active_object, "OBJVertAni", text="Use Vertex Animation For This Object")
+            #row2.scale_y = 1.5
+
+            # Fx Options
+            box4 = layout.box()
+            box4.label(text="Options :", icon_value=fx_icon.icon_id)
+            col = box4.column(align=True)
             col.prop(context.active_object, "FxUse")
             
-            #col.separator()
+
             if context.active_object.FxUse:
                 
                 col.label(text="Frames:")
-                row = layout.row()
+                row = box4.row()
                 row.template_list("FX_UL_List", "FX_UL_List", context.active_object,"Fx_list", context.active_object, "Fxlist_index")
                 
                 col = row.column(align=True)
@@ -352,7 +367,7 @@ class VIEW3D_PT_BlenderNx3Main(BlenderNx3Panel): # UI BY Peakz
 
                 if context.active_object.Fxlist_index >= 0 and context.active_object.Fx_list:
                     item = context.active_object.Fx_list[context.active_object.Fxlist_index]
-                    row2 = layout.row()
+                    row2 = box4.row()
                     col2 = row2.column(align=True)
 
                     col2.prop(item, "frame")
@@ -396,7 +411,7 @@ class VIEW3D_PT_BlenderNx3Main(BlenderNx3Panel): # UI BY Peakz
                         col2.prop(item, "FxString")
                     col.separator()
 
-# icons #
+# Preferences #
 @register_class                
 class NX3Preferences(AddonPreferences): 
     bl_idname = __package__
@@ -415,6 +430,22 @@ class NX3Preferences(AddonPreferences):
         if fp is not None and fp != "" and not path.exists(fp):
             layout.label(text="Path doesn't exist", icon='ERROR')
 
+        col = layout.column_flow()
+        row = col.row()
+        row.label(text="")
+        
+        row.operator("wm.url_open", text="", icon_value=youtube_icon.icon_id).url = "https://www.youtube.com/@peakzds8419"
+        row.separator()
+        row.operator("wm.url_open", text="", icon_value=github_icon.icon_id).url = "https://github.com/PeakA9W/BTRFdom"
+        row.separator()
+        row.operator("wm.url_open", text="", icon_value=discord_icon.icon_id).url = "https://discord.gg/Cbm58jjBy2"
+        for i in range(12):
+            row.separator()
+        
+
+##############
+#            
+# icons #
 preview_collections = {}
 ########
 
@@ -427,8 +458,8 @@ class VIEW3D_MT_PIE_NX3(Menu):
         layout = self.layout
 
         pie = layout.menu_pie()
-        pie.operator(ImportBTRF.bl_idname, text="Import", icon_value=my_icon.icon_id)
-        pie.operator(ExportBTRF.bl_idname, text="Export", icon_value=my_icon.icon_id)
+        pie.operator(ImportBTRF.bl_idname, text="Import", icon_value=nx3_icon.icon_id)
+        pie.operator(ExportBTRF.bl_idname, text="Export", icon_value=nx3_icon.icon_id)
 ############
 
 # keymaps #
@@ -440,11 +471,27 @@ def register():
         bpy.utils.register_class(cls)
 
     # icons #
-    global my_icon
+    global nx3_icon
+    global fx_icon
+    global github_icon
+    global youtube_icon
+    global discord_icon
+    
     pcoll = bpy.utils.previews.new() 
     my_icons_dir = path.join(path.dirname(__file__), "icons")
-    pcoll.load("my_icon", path.join(my_icons_dir, "nx3.png"), 'IMAGE')
-    my_icon = pcoll["my_icon"]
+
+    pcoll.load("nx3", path.join(my_icons_dir, "nx3.png"), 'IMAGE')
+    pcoll.load("fx", path.join(my_icons_dir, "fx.png"), 'IMAGE')
+    pcoll.load("github", path.join(my_icons_dir, "github.png"), 'IMAGE')
+    pcoll.load("youtube", path.join(my_icons_dir, "youtube.png"), 'IMAGE')
+    pcoll.load("discord", path.join(my_icons_dir, "discord.png"), 'IMAGE')
+
+    nx3_icon = pcoll["nx3"]
+    fx_icon = pcoll["fx"]
+    github_icon = pcoll["github"]
+    youtube_icon = pcoll["youtube"]
+    discord_icon = pcoll["discord"]
+
     preview_collections["main"] = pcoll
     #########
 
