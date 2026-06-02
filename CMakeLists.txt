@@ -1,39 +1,63 @@
-cmake_minimum_required(VERSION 2.8)
-project(BTRFdom)
+cmake_minimum_required(VERSION 3.16)
+
+project(BTRFdom VERSION 1.0 LANGUAGES CXX)
+
 enable_testing()
 
-set(CMAKE_VERBOSE_MAKEFILE true)
+set(CMAKE_VERBOSE_MAKEFILE ON)
+
+# Output directories
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
+
+# C++ standard
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Shared libraries without "lib" prefix
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
-#set(CMAKE_BUILD_TYPE "Release")
 
-get_filename_component(BUILD_DIR_NAME ${CMAKE_BINARY_DIR} NAME)
-
-set(EXECUTABLE_OUTPUT_PATH "${CMAKE_BINARY_DIR}/bin")
-set(LIBRARY_OUTPUT_PATH "${CMAKE_BINARY_DIR}/bin")
+# Optional build type
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
 
 if(MSVC)
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MANIFEST:NO /INCREMENTAL:NO")
-  set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} /MANIFEST:NO /INCREMENTAL:NO")
-  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} /MANIFEST:NO /INCREMENTAL:NO")
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 
-  add_definitions("-D_CRT_SECURE_NO_WARNINGS")
+    add_link_options(
+        /MANIFEST:NO
+        /INCREMENTAL:NO
+    )
 else()
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall")
+    add_compile_options(
+        -Wall
+        -Wextra
+    )
 
-  if(MINGW)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libgcc -static-libstdc++")
-    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -static-libgcc -static-libstdc++ -Wl,--add-stdcall-alias")
-  endif()
+    if(MINGW)
+        add_link_options(
+            -static-libgcc
+            -static-libstdc++
+            -Wl,--add-stdcall-alias
+        )
+    endif()
 
-  #for qtcreator
-  add_definitions("-D__GXX_EXPERIMENTAL_CXX0X__")
+    # Legacy compatibility define used by old Qt Creator projects
+    add_compile_definitions(__GXX_EXPERIMENTAL_CXX0X__)
 endif()
 
-if(UNIX)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wl,-rpath,.")
+# Runtime library search path on Unix-like systems
+if(UNIX AND NOT APPLE)
+    set(CMAKE_INSTALL_RPATH "$ORIGIN")
+    set(CMAKE_BUILD_RPATH "$ORIGIN")
 endif()
 
-add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/gtest" gtest)
-add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/shared-lib" shared-lib)
-add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/dll-client-cpp" dll-client-cpp)
-add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/dll-test-cpp" dll-test-cpp)
+# Dependencies
+# Disabled test since original git sub-module has been deleted.
+# add_subdirectory(gtest)
+add_subdirectory(shared-lib)
+add_subdirectory(dll-client-cpp)
+# add_subdirectory(dll-test-cpp)

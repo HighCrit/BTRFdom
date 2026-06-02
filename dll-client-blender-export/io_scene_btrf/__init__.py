@@ -1,7 +1,7 @@
 #
 # BTRFdom - Rappelz BTRF Document Object Model
-# By Glandu2
-# Copyright 2013 Glandu2
+# By Glandu2, HighCrit
+# Copyright 2013-2026
 #
 # This file is part of BTRFdom.
 # BTRFdom is free software: you can redistribute it and/or modify
@@ -19,76 +19,86 @@
 #
 
 bl_info = {
-	"name": "Rappelz NX3 format",
-	"author": "Glandu2",
-	"blender": (2, 6, 4),
-	"version": (0, 2, 0),
-	"location": "File > Import-Export",
-	"description": "Export to a Rappelz NX3 file",
-	"category": "Import-Export"}
+    "name": "Rappelz NX3 format",
+    "author": "Glandu2, HighCrit",
+    "blender": (4, 0, 0),
+    "version": (0, 3, 0),
+    "location": "File > Import-Export",
+    "description": "Import/Export Rappelz NX3 files",
+    "category": "Import-Export",
+}
 
 import bpy
 from bpy_extras.io_utils import ExportHelper, ImportHelper
 from bpy.props import StringProperty
 from . import export_nx3
 from . import import_nx3
-import imp
+
+if "bpy" in locals():
+    import importlib
+    if "export_nx3" in locals():
+        importlib.reload(export_nx3)
+    if "import_nx3" in locals():
+        importlib.reload(import_nx3)
 
 
 class ExportBTRF(bpy.types.Operator, ExportHelper):
-	bl_idname = "export_mesh.nx3"
-	bl_label = "Export NX3"
-	bl_options = {'PRESET'}
+    bl_idname = "export_mesh.nx3"
+    bl_label = "Export NX3"
+    bl_options = {'PRESET'}
 
-	filepath = StringProperty(
-			subtype='FILE_PATH',
-			)
+    filename_ext = ".nx3"
 
-	filename_ext = ".nx3"
+    filter_glob: StringProperty(
+        default="*.nx3",
+        options={'HIDDEN'},
+    )
 
-	def execute(self, context):
-		imp.reload(export_nx3)
-		export_nx3.write(self.filepath)
-		return {'FINISHED'}
+    def execute(self, context):
+        export_nx3.write(self.filepath)
+        return {'FINISHED'}
 
 
 class ImportBTRF(bpy.types.Operator, ImportHelper):
-	bl_idname = "import_mesh.nx3"
-	bl_label = "Import NX3"
-	bl_options = {'PRESET'}
+    bl_idname = "import_mesh.nx3"
+    bl_label = "Import NX3"
+    bl_options = {'PRESET'}
 
-	filepath = StringProperty(
-			subtype='FILE_PATH',
-			)
+    filename_ext = ".nx3"
 
-	filename_ext = ".nx3"
+    filter_glob: StringProperty(
+        default="*.nx3",
+        options={'HIDDEN'},
+    )
 
-	def execute(self, context):
-		imp.reload(import_nx3)
-		import_nx3.read(self.filepath)
-		return {'FINISHED'}
+    def execute(self, context):
+        import_nx3.read(self.filepath)
+        return {'FINISHED'}
 
 
 def menu_func_export(self, context):
-	self.layout.operator(ExportBTRF.bl_idname, text="Rappelz NX3 (.nx3)")
+    self.layout.operator(ExportBTRF.bl_idname, text="Rappelz NX3 (.nx3)")
 
 
 def menu_func_import(self, context):
-	self.layout.operator(ImportBTRF.bl_idname, text="Rappelz NX3 (.nx3)")
+    self.layout.operator(ImportBTRF.bl_idname, text="Rappelz NX3 (.nx3)")
 
 
 def register():
-	bpy.utils.register_module(__name__)
+    bpy.utils.register_class(ExportBTRF)
+    bpy.utils.register_class(ImportBTRF)
 
-	bpy.types.INFO_MT_file_import.append(menu_func_import)
-	bpy.types.INFO_MT_file_export.append(menu_func_export)
+    bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
+    bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
 
 
 def unregister():
-	bpy.utils.unregister_module(__name__)
+    bpy.utils.unregister_class(ExportBTRF)
+    bpy.utils.unregister_class(ImportBTRF)
 
-	bpy.types.INFO_MT_file_import.remove(menu_func_import)
-	bpy.types.INFO_MT_file_export.remove(menu_func_export)
+    bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
+    bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
+
 
 if __name__ == "__main__":
-	register()
+    register()

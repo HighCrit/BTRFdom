@@ -106,6 +106,55 @@ private:
 	int templateId;
 };
 
+template<typename T> struct TypeValue{ enum { MemberType = ET_None }; };
+
+template<typename T>
+struct TypeValue;
+
+template<>
+struct TypeValue<char> {
+    enum { MemberType = ET_Char };
+};
+
+template<>
+struct TypeValue<short> {
+    enum { MemberType = ET_Word };
+};
+
+template<>
+struct TypeValue<int> {
+    enum { MemberType = ET_DWord };
+};
+
+template<>
+struct TypeValue<float> {
+    enum { MemberType = ET_Float };
+};
+
+template<typename T>
+T* BtrfBlock::getDataPtr() {
+    return static_cast<T*>(data);
+}
+
+template<typename T>
+void BtrfBlock::setDataPtr(T* data) {
+    freeData();
+    checkIndexType(TypeValue<T>::MemberType, -1);
+    this->data = data;
+}
+
+template<typename T>
+T BtrfBlock::getData(int index) {
+    checkIndexType(TypeValue<T>::MemberType, index);
+    return getDataPtr<T>()[index];
+}
+
+template<typename T>
+void BtrfBlock::setData(int index, T data) {
+    checkIndexType(TypeValue<T>::MemberType, index);
+    getDataPtr<T>()[index] = data;
+}
+
 template<> const char * BtrfBlock::getData<const char*>(int index);
 
 const char* DLLCALLCONV BtrfBlock::getDataString(int index) { return getData<const char*>(index); }

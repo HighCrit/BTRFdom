@@ -24,13 +24,6 @@
 #include "BtrfRootBlock.h"
 #include <deque>
 
-template<typename T> struct TypeValue{ enum { MemberType = ET_None }; };
-template<> struct TypeValue<char> { enum { MemberType = ET_Char }; };
-template<> struct TypeValue<short> { enum { MemberType = ET_Word }; };
-template<> struct TypeValue<int> { enum { MemberType = ET_DWord }; };
-template<> struct TypeValue<float> { enum { MemberType = ET_Float }; };
-
-
 BtrfBlock::BtrfBlock(TmlBlock *fieldInfo, BtrfRootBlock *rootBlock)
 	: fieldInfo(fieldInfo),
 	  rootBlock(rootBlock),
@@ -163,11 +156,6 @@ void DLLCALLCONV BtrfBlock::setElementNumber(int num) {
 	initData();
 }
 
-template<typename T> void BtrfBlock::setData(int index, T data) {
-	checkIndexType(TypeValue<T>::MemberType, index);
-	getDataPtr<T>()[index] = data;
-}
-
 void DLLCALLCONV BtrfBlock::setDataString(int index, const char* data) {
 	for(int i = 0; i < rootBlock->getStringNum(); i++) {
 		if(strcmp(rootBlock->getString(i), data) == 0) {
@@ -179,11 +167,6 @@ void DLLCALLCONV BtrfBlock::setDataString(int index, const char* data) {
 	setDataStringId(index, rootBlock->addString(data));
 }
 
-template<typename T> T BtrfBlock::getData(int index) {
-	checkIndexType(TypeValue<T>::MemberType, index);
-	return getDataPtr<T>()[index];
-}
-
 template<> const char * BtrfBlock::getData<const char*>(int index) {
 	checkIndexType(ET_String, index);
 
@@ -192,16 +175,6 @@ template<> const char * BtrfBlock::getData<const char*>(int index) {
 		return rootBlock->getString(id);
 	else
 		return nullptr;
-}
-
-template<typename T> void BtrfBlock::setDataPtr(T* data) {
-	freeData();
-	checkIndexType(TypeValue<T>::MemberType, -1);
-	this->data = data;
-}
-
-template<typename T> T* BtrfBlock::getDataPtr() {
-	return static_cast<T*>(data);
 }
 
 int BtrfBlock::addBlock(IBtrfBlock *block) {
