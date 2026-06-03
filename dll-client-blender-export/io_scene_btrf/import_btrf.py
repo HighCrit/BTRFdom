@@ -388,19 +388,57 @@ def read_mesh_header(rootBlock, materials, filename):
 def read(nx3_filename):
     info("Reading file %s" % nx3_filename)
 
+    # Resolve absolute path — handles relative paths and symlinks
+    nx3_filename = os.path.realpath(nx3_filename)
+
+    if not os.path.isfile(nx3_filename):
+        error("NX3 file not found: %s" % nx3_filename)
+        return
+
     script_dir = os.path.dirname(os.path.abspath(__file__))
+
+    nx3_tml  = os.path.join(script_dir, "nx3.tml")
+    nobj_tml = os.path.join(script_dir, "nobj.tml")
+
+    for path in (nx3_tml, nobj_tml):
+        if not os.path.isfile(path):
+            error("Required template file not found: %s" % path)
+            return
 
     tmlFile = TmlFile()
     tmlFile.create()
-    tmlFile.parseFile(script_dir + "/nx3.tml")
-    tmlFile.parseFile(script_dir + "/nobj.tml")
+
+    if not tmlFile.parseFile(nx3_tml):
+        error("Failed to parse template file: %s" % nx3_tml)
+        return
+
+    if not tmlFile.parseFile(nobj_tml):
+        error("Failed to parse template file: %s" % nobj_tml)
+        return
+
+    # Verify the core NX3 templates were actually registered
+    nx3_mesh_template = tmlFile.getTemplateByName("nx3_new_mesh_header")
+    if nx3_mesh_template is None:
+        error(
+            "Template 'nx3_new_mesh_header' not found after parsing TML files. "
+            "The TML files may be corrupt or mismatched with BTRFdom.so."
+        )
+        return
 
     parser = BtrfParser()
     parser.create(tmlFile)
     rootBlock = parser.readFile(nx3_filename)
 
     if rootBlock is None:
-        error("Could not read nx3 file")
+        error(
+            "BTRFdom could not parse '%s'.\n"
+            "Possible causes:\n"
+            "  - The file is not a valid NX3 file\n"
+            "  - BTRFdom.so was compiled against a different TML schema\n"
+            "  - The file path contains characters the native library cannot handle\n"
+            "  - The file uses a format version unsupported by this BTRFdom build"
+            % nx3_filename
+        )
         return
 
     materials = read_materials(rootBlock, os.path.dirname(nx3_filename))

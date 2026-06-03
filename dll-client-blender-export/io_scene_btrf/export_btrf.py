@@ -229,11 +229,20 @@ def get_texture_filename(material):
 def load_btrfdom():
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
+    nx3_tml  = os.path.join(script_dir, "nx3.tml")
+    nobj_tml = os.path.join(script_dir, "nobj.tml")
+
+    for path in (nx3_tml, nobj_tml):
+        if not os.path.isfile(path):
+            error("Required template file not found: %s" % path)
+
     tmlFile = TmlFile()
     tmlFile.create()
 
-    tmlFile.parseFile(script_dir + "/nx3.tml")
-    tmlFile.parseFile(script_dir + "/nobj.tml")
+    if not tmlFile.parseFile(nx3_tml):
+        error("Failed to parse template file: %s" % nx3_tml)
+    if not tmlFile.parseFile(nobj_tml):
+        error("Failed to parse template file: %s" % nobj_tml)
 
     rootBlock = BtrfRootBlock()
     rootBlock.create(tmlFile)
@@ -507,7 +516,7 @@ def get_nx3_mesh_block(tmlFile, rootBlock, mesh_object, mesh_data, mesh_block_fa
 
             index = index_of_vertex_info(vertex_info_array, vertex_info)
             if index == -1:
-                index = vertex_info.vertex_index
+                index = len(vertex_info_array)
                 vertex_info_array.append(vertex_info)
             index_array.append(index)
 
