@@ -2,7 +2,6 @@
 # BTRFdom - Rappelz BTRF Document Object Model
 # By Glandu2/Ldxngx/Peakz, HighCrit
 # Copyright 2013-2026
-# Updated to 3.0 by Andrej Tetkic
 #
 # This file is part of BTRFdom.
 # BTRFdom is free software: you can redistribute it and/or modify
@@ -21,85 +20,440 @@
 
 bl_info = {
     "name": "Rappelz NX3 format",
-    "author": "Glandu2, HighCrit",
+    "author": "Glandu2/Peakz, HighCrit",
     "blender": (4, 0, 0),
-    "version": (0, 3, 0),
+    "version": (1, 7, 3),
     "location": "File > Import-Export",
-    "description": "Import/Export Rappelz NX3 files",
+    "description": "Import and Export a Rappelz NX3 file",
     "category": "Import-Export",
 }
 
 import bpy
+import bpy.utils.previews
+import importlib
 from bpy_extras.io_utils import ExportHelper, ImportHelper
-from bpy.props import StringProperty
+from bpy.props import StringProperty, BoolProperty, IntProperty, FloatProperty, CollectionProperty
+from bpy.types import AddonPreferences, PropertyGroup, UIList, UILayout, Operator, Panel, Menu
 from . import export_btrf
 from . import import_btrf
+from os import path
 
-if "bpy" in locals():
-    import importlib
-    if "export_btrf" in locals():
-        importlib.reload(export_btrf)
-    if "import_btrf" in locals():
-        importlib.reload(import_btrf)
+classes = []
 
+def register_class(cls):
+    classes.append(cls)
+    return cls
 
+@register_class
 class ExportBTRF(bpy.types.Operator, ExportHelper):
     bl_idname = "export_mesh.nx3"
     bl_label = "Export NX3"
-    bl_options = {'PRESET'}
+    bl_options = {'UNDO', 'PRESET'}
+
+    filepath: StringProperty(
+        subtype='FILE_PATH',
+    )
 
     filename_ext = ".nx3"
 
-    filter_glob: StringProperty(
-        default="*.nx3",
-        options={'HIDDEN'},
+    use_collection: BoolProperty(
+        name="Active Collection Only",
+        description="Export active Collection's objects only",
+        default=False,
     )
 
+    use_selection: BoolProperty(
+        name="Selection Only",
+        description="Export selected objects only",
+        default=False,
+    )
+
+    use_Tanimation: BoolProperty(
+        name="Export Transform Animation",
+        description="Export transform animation (Location, Rotation, Scale)",
+        default=False,
+    )
+
+    use_Batch: BoolProperty(
+        name="Export Batch",
+        description="Export each object as a separate nx3 file",
+        default=False,
+    )
+
+    def draw(self, context):
+        layout = self.layout
+
+        box = layout.box()
+        box.label(text="Limit Export To :", icon="OBJECT_DATA")
+        box.prop(self, 'use_collection')
+        box.prop(self, 'use_selection')
+
+        box = layout.box()
+        box.label(text="Animation :", icon="ANIM")
+        box.prop(self, 'use_Tanimation')
+
+        box = layout.box()
+        box.label(text="Batch :", icon="EXPORT")
+        box.prop(self, 'use_Batch')
+
     def execute(self, context):
-        export_btrf.write(self.filepath)
+        options = [self.use_collection, self.use_selection, self.use_Tanimation, self.use_Batch]
+        importlib.reload(export_btrf)
+        export_btrf.write(self.filepath, *options)
         return {'FINISHED'}
 
 
+@register_class
 class ImportBTRF(bpy.types.Operator, ImportHelper):
     bl_idname = "import_mesh.nx3"
     bl_label = "Import NX3"
-    bl_options = {'PRESET'}
+    bl_options = {'UNDO', 'PRESET'}
+
+    directory: StringProperty(
+        subtype='DIR_PATH',
+    )
+
+    files: CollectionProperty(
+        type=bpy.types.OperatorFileListElement,
+    )
 
     filename_ext = ".nx3"
 
-    filter_glob: StringProperty(
-        default="*.nx3",
-        options={'HIDDEN'},
-    )
-
     def execute(self, context):
-        import_btrf.read(self.filepath)
+        importlib.reload(import_btrf)
+        for file in self.files:
+            filepath = path.join(self.directory, file.name)
+            import_btrf.read(filepath)
         return {'FINISHED'}
 
 
 def menu_func_export(self, context):
-    self.layout.operator(ExportBTRF.bl_idname, text="Rappelz NX3 (.nx3)")
+    self.layout.operator(ExportBTRF.bl_idname, text="Rappelz NX3 (.nx3)", icon_value=nx3_icon.icon_id)
 
 
 def menu_func_import(self, context):
-    self.layout.operator(ImportBTRF.bl_idname, text="Rappelz NX3 (.nx3)")
+    self.layout.operator(ImportBTRF.bl_idname, text="Rappelz NX3 (.nx3)", icon_value=nx3_icon.icon_id)
+
+
+class nxfx:
+    Options = (
+        ("billboard",        "billboard",        ""),
+        ("after_image",      "after_image",      ""),
+        ("particle",         "particle",         ""),
+        ("reverse_particle", "reverse_particle", ""),
+    )
+
+
+@register_class
+class FxListItem(PropertyGroup):
+    """Group of properties representing an item in the list."""
+
+    frame: StringProperty(
+        name="StartFrame=",
+        description="Put The Frame Number Here",
+        default="0",
+    )
+
+    FxCreateTime: StringProperty(name="CreateTime",  description="CreateTime",  default='')
+    FxBeginSpeed: StringProperty(name="BeginSpeed",  description="BeginSpeed",  default='')
+    FxVelocity:   StringProperty(name="Velocity",    description="Velocity",    default='')
+    FxAngle:      StringProperty(name="Angle",       description="Angle",       default='')
+    FxLifeTime:   StringProperty(name="LifeTime",    description="LifeTime",    default='')
+    FxUVAni:      StringProperty(name="UVAni",       description="UVAnimation", default='')
+    FxLoop:       StringProperty(name="Loop",        description="Loop",        default='')
+
+    FxRenderType: StringProperty(
+        name="RenderType",
+        description="RenderType",
+        default='0',
+    )
+
+    FxFrameTime:   IntProperty(name="FrameTime",   description="FrameTime",   default=50)
+    FxFrameNumber: IntProperty(name="FrameNumber", description="FrameNumber", default=200)
+
+    FxUseString: BoolProperty(
+        name="Use Text",
+        description="Use Text args separated by a dot",
+        default=False,
+    )
+
+    FxString: StringProperty(
+        name="Fx String",
+        description="Fx text separated by a dot",
+        default='',
+    )
+
+
+@register_class
+class FX_UL_List(UIList):
+    """FX UIList."""
+
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        custom_icon = 'DECORATE_KEYFRAME'
+        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+            layout.label(text=f'{item.frame}', icon=custom_icon)
+        elif self.layout_type in {'GRID'}:
+            layout.alignment = 'CENTER'
+            layout.label(text="", icon=custom_icon)
+
+
+@register_class
+class FXLIST_OT_AddFrame(Operator):
+    """Add a new frame to the list."""
+
+    bl_idname = "fx_list.add_frame"
+    bl_label = "Add a new frame"
+
+    def execute(self, context):
+        context.active_object.Fx_list.add()
+        return {'FINISHED'}
+
+
+@register_class
+class FXLIST_OT_DeleteFrame(Operator):
+    """Delete the selected frame from the list."""
+
+    bl_idname = "fx_list.delete_frame"
+    bl_label = "Deletes a frame"
+
+    @classmethod
+    def poll(cls, context):
+        return context.active_object.Fx_list
+
+    def execute(self, context):
+        Fx_list = context.active_object.Fx_list
+        Fxindex = context.active_object.Fxlist_index
+        Fx_list.remove(Fxindex)
+        context.active_object.Fxlist_index = min(max(0, Fxindex - 1), len(Fx_list) - 1)
+        return {'FINISHED'}
+
+
+class BlenderNx3Panel(Panel):
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "Nx3"
+    bl_context = "objectmode"
+
+
+@register_class
+class VIEW3D_PT_BlenderNx3Main(BlenderNx3Panel):
+    """Creates a Panel in Properties(N)"""
+
+    bl_label = "Nx3 UI by Peakz"
+    bl_idname = "VIEW3D_PT_BlenderNx3Main"
+
+    bpy.types.Object.Nxfx = bpy.props.EnumProperty(
+        name="nxfx", items=nxfx.Options
+    )
+
+    def draw(self, context):
+        if context.active_object.type == 'MESH':
+            layout = self.layout
+
+            if context.active_object.active_material:
+                box0 = layout.box()
+                box0.label(text="Material Options :", icon="MATERIAL_DATA")
+                row = box0.row(align=False, heading='Additive Value')
+                row.prop(context.active_object.active_material, "MtlIllumi", text="")
+
+            box1 = layout.box()
+            box1.label(text="Visibility Options :", icon="HIDE_OFF")
+            row0 = box1.row(align=False, heading='Visibility Value')
+            row0.prop(context.active_object, "OBJVisi", text="")
+
+            box2 = layout.box()
+            row1 = box2.row(align=False)
+            row1.prop(context.active_object, "UseNewVertexOrder", text="Use New Vertex Order Export For This Object")
+
+            box3 = layout.box()
+            box3.label(text="Animation Options :", icon="ANIM")
+            row2 = box3.row(align=False)
+            row2.prop(context.active_object, "OBJVertAni", text="Use Vertex Animation For This Object")
+
+            box4 = layout.box()
+            box4.label(text="Options :", icon_value=fx_icon.icon_id)
+            col = box4.column(align=True)
+            col.prop(context.active_object, "FxUse")
+
+            if context.active_object.FxUse:
+                col.label(text="Frames:")
+                row = box4.row()
+                row.template_list("FX_UL_List", "FX_UL_List", context.active_object, "Fx_list", context.active_object, "Fxlist_index")
+
+                col = row.column(align=True)
+                col.operator("fx_list.add_frame", icon='ADD', text="")
+                col.operator("fx_list.delete_frame", icon='REMOVE', text="")
+
+                if context.active_object.Fxlist_index >= 0 and context.active_object.Fx_list:
+                    item = context.active_object.Fx_list[context.active_object.Fxlist_index]
+                    row2 = box4.row()
+                    col2 = row2.column(align=True)
+
+                    col2.prop(item, "frame")
+                    col2.label(text="Fx Settings :")
+
+                    if not item.FxUseString and context.active_object.Fxlist_index == 0:
+                        col2.prop(context.active_object, "Nxfx")
+                        nxfxType = context.active_object.Nxfx
+
+                        if nxfxType == 'particle':
+                            col2.prop(item, "FxCreateTime")
+                            col2.prop(item, "FxBeginSpeed")
+                            col2.prop(item, "FxVelocity")
+                            col2.prop(item, "FxAngle")
+                            col2.prop(item, "FxLifeTime")
+                            col2.prop(item, "FxUVAni")
+                            col2.prop(item, "FxLoop")
+                            col2.prop(item, "FxRenderType")
+                        if nxfxType == 'billboard':
+                            col2.prop(item, "FxRenderType")
+                        if nxfxType == 'reverse_particle':
+                            col2.prop(item, "FxCreateTime")
+                            col2.prop(item, "FxBeginSpeed")
+                            col2.prop(item, "FxVelocity")
+                            col2.prop(item, "FxAngle")
+                            col2.prop(item, "FxLifeTime")
+                            col2.prop(item, "FxUVAni")
+                            col2.prop(item, "FxLoop")
+                            col2.prop(item, "FxRenderType")
+                        if nxfxType == 'after_image':
+                            col2.prop(item, "FxFrameTime")
+                            col2.prop(item, "FxFrameNumber")
+
+                    if context.active_object.Fxlist_index == 0:
+                        col2.separator()
+                        col2.prop(item, "FxUseString")
+                        if item.FxUseString:
+                            col2.prop(item, "FxString")
+                    else:
+                        col2.prop(item, "FxString")
+                    col.separator()
+
+
+@register_class
+class NX3Preferences(AddonPreferences):
+    bl_idname = __package__
+
+    Dumppath: StringProperty(
+        name="Dump Path",
+        description="Path To Search For Missing Textures",
+        subtype='FILE_PATH',
+        default="",
+    )
+
+    def draw(self, context: bpy.types.Context):
+        layout: UILayout = self.layout
+        layout.prop(self, "Dumppath")
+        fp = context.preferences.addons[__package__].preferences.get("Dumppath")
+        if fp is not None and fp != "" and not path.exists(fp):
+            layout.label(text="Path doesn't exist", icon='ERROR')
+
+
+preview_collections = {}
+
+
+@register_class
+class VIEW3D_MT_PIE_NX3(Menu):
+    bl_label = "NX3 PIE MENU"
+
+    def draw(self, context):
+        layout = self.layout
+        pie = layout.menu_pie()
+        pie.operator(ImportBTRF.bl_idname, text="Import", icon_value=nx3_icon.icon_id)
+        pie.operator(ExportBTRF.bl_idname, text="Export", icon_value=nx3_icon.icon_id)
+
+
+global_nx3_keymaps = []
 
 
 def register():
     bpy.utils.register_class(ExportBTRF)
     bpy.utils.register_class(ImportBTRF)
 
+    global nx3_icon, fx_icon
+
+    pcoll = bpy.utils.previews.new()
+    my_icons_dir = path.join(path.dirname(__file__), "icons")
+    pcoll.load("nx3", path.join(my_icons_dir, "nx3.png"), 'IMAGE')
+    pcoll.load("fx",  path.join(my_icons_dir, "fx.png"),  'IMAGE')
+
+    nx3_icon = pcoll["nx3"]
+    fx_icon  = pcoll["fx"]
+
+    preview_collections["main"] = pcoll
+
+    window_manager = bpy.context.window_manager
+    if window_manager.keyconfigs.addon:
+        keymap = window_manager.keyconfigs.addon.keymaps.new(name='3D View', space_type='VIEW_3D')
+        keymap_item = keymap.keymap_items.new('wm.call_menu_pie', 'A', "PRESS", shift=True, alt=True)
+        keymap_item.properties.name = "VIEW3D_MT_PIE_NX3"
+        global_nx3_keymaps.append((keymap, keymap_item))
+
     bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
     bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
+
+    bpy.types.Object.FxUse = BoolProperty(
+        name="Use Fx",
+        description="Use Fx For This Object",
+        default=False,
+    )
+
+    bpy.types.Object.OBJVisi = FloatProperty(
+        name="Visibility Value",
+        description="The Visibility Value of the Active Object",
+        default=1, max=1, min=0, step=0.01, precision=2,
+        subtype="FACTOR",
+    )
+
+    bpy.types.Object.OBJVertAni = BoolProperty(
+        name="Use Vertex Animation",
+        description="Use Vertex Animation For This Object",
+        default=False,
+    )
+
+    bpy.types.Object.UseNewVertexOrder = BoolProperty(
+        name="Use New Vertex Order Export",
+        description="Use New Vertex Order Export For This Object (Try this if the mesh is broken on export)",
+        default=False,
+    )
+
+    bpy.types.Object.Fx_list = CollectionProperty(type=FxListItem)
+    bpy.types.Object.Fxlist_index = IntProperty(name="Index for Fx_list", default=0)
+
+    bpy.types.Material.MtlIllumi = FloatProperty(
+        name="Additive Value",
+        description="The Additive Value of the Active Material",
+        default=0, max=1, min=0, step=1, precision=1,
+        subtype="FACTOR",
+    )
 
 
 def unregister():
     bpy.utils.unregister_class(ExportBTRF)
     bpy.utils.unregister_class(ImportBTRF)
 
+    for pcoll in preview_collections.values():
+        bpy.utils.previews.remove(pcoll)
+    preview_collections.clear()
+
+    window_manager = bpy.context.window_manager
+    if window_manager and window_manager.keyconfigs and window_manager.keyconfigs.addon:
+        for keymap, keymap_item in global_nx3_keymaps:
+            keymap.keymap_items.remove(keymap_item)
+    global_nx3_keymaps.clear()
+
     bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
 
+    ob = bpy.types.Object
+    del ob.OBJVisi
+    del ob.OBJVertAni
+    del ob.UseNewVertexOrder
+    del ob.FxUse
+    del ob.Fx_list
+    del ob.Fxlist_index
+
+    del bpy.types.Material.MtlIllumi
 
 if __name__ == "__main__":
-	register()
+    register()
